@@ -47,3 +47,35 @@ def analyze_damage_image(image_bytes: bytes, mime_type: str = 'image/jpeg'):
             "severity": None,
             "description": f"AI verification failed: {str(e)}"
         }
+
+def generate_action_plan(category: str, severity: str, latitude: float, longitude: float) -> str:
+    """
+    Uses Gemini to draft an official email/action plan to the contractor.
+    """
+    client = genai.Client()
+    
+    prompt = f"""
+    You are an AI assistant for a government municipal corporation.
+    Write a short, professional, and official work order email to the repair contractor.
+    
+    Issue Details:
+    - Damage Type: {category}
+    - AI Severity Score: {severity}
+    - Location Coordinates: {latitude}, {longitude}
+    
+    Instructions:
+    - Keep it very concise (3-4 sentences max).
+    - It should sound like an official government dispatch.
+    - Ask them to dispatch a team immediately because the AI verified it.
+    - Return ONLY the email draft text without any markdown or extra conversational text.
+    """
+    
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt
+        )
+        return response.text.strip()
+    except Exception as e:
+        print(f"Error calling Gemini API for action plan: {e}")
+        return "Failed to generate action plan due to AI service error."
