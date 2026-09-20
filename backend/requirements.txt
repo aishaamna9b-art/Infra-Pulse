@@ -4,5 +4,9 @@ sqlalchemy
 pydantic
 google-genai
 python-multipart
-python-dotenv  
- 
+python-dotenv
+streamlit
+folium
+streamlit-folium
+requests
+pandas

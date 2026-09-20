@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 import json
 import models
 from database import engine, get_db
-from services import analyze_damage_image
+from services import analyze_damage_image, generate_action_plan
 
 # Load environment variables (like GEMINI_API_KEY)
 load_dotenv()
@@ -107,4 +107,31 @@ async def create_report(
         "is_duplicate": closest_ticket is not None,
         "report_id": new_report.id
     }
+
+@app.post("/api/v1/admin/reports/{master_ticket_id}/action-plan")
+def create_action_plan(master_ticket_id: int, db: Session = Depends(get_db)):
+    ticket = db.query(models.MasterTicket).filter(models.MasterTicket.id == master_ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Master ticket not found")
+        
+    email_draft = generate_action_plan(
+        category=ticket.category, 
+        severity=ticket.severity, 
+        latitude=ticket.latitude, 
+        longitude=ticket.longitude
+    )
+    
+    return {
+        "status": "success",
+        "master_ticket_id": ticket.id,
+        "email_draft": email_draft
+    }
+
+@app.get("/api/v1/admin/reports/master")
+def get_master_tickets(db: Session = Depends(get_db)):
+    """
+    Fetch all master tickets to plot on the admin dashboard map.
+    """
+    tickets = db.query(models.MasterTicket).all()
+    return tickets
 
