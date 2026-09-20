@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en" class="dark" style="scroll-behavior: smooth;">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infra-Pulse | Dark Command Center</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        
+        #map { height: 450px; border-radius: 0.75rem; z-index: 1; }
+        
+        /* Modal Styles */
+        #ai-modal { display: none; }
+        #ai-modal.active { display: flex; }
+        
+        /* Custom Scrollbar for dark theme */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden">
+
+    <!-- Sidebar -->
+    <aside class="w-72 bg-slate-900 border-r border-slate-800 flex flex-col hidden md:flex">
+        <div class="h-20 flex items-center px-8 border-b border-slate-800">
+            <div class="w-10 h-10 bg-indigo-500 rounded-lg flex items-center justify-center mr-4 shadow-lg shadow-indigo-500/30">
+                <i class="fas fa-bolt text-xl text-white"></i>
+            </div>
+            <span class="text-2xl font-bold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-400">Infra-Pulse</span>
+        </div>
+        <nav class="flex-1 py-8 px-6 space-y-3">
+            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">Command Modules</p>
+            <a href="#radar-section" class="flex items-center px-4 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-indigo-400 font-medium shadow-sm transition">
+                <i class="fas fa-satellite-dish w-6 mr-3"></i> Live Radar
+            </a>
+            <a href="#tickets-section" class="flex items-center px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white rounded-xl transition">
+                <i class="fas fa-list-ul w-6 mr-3"></i> Master Tickets
+            </a>
+        </nav>
+        <div class="p-6 border-t border-slate-800 bg-slate-900/50">
+            <div class="flex items-center">
+                <img src="https://ui-avatars.com/api/?name=Govt+Admin&background=0f172a&color=cbd5e1" class="w-12 h-12 rounded-full border border-slate-600">
+                <div class="ml-4">
+                    <p class="text-sm font-bold text-white">Govt Admin</p>
+                    <p class="text-xs text-green-400 flex items-center"><span class="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></span> System Online</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col h-screen overflow-y-auto bg-slate-950">
+        
+        <header class="h-20 border-b border-slate-800 flex items-center justify-between px-10 bg-slate-900/50 backdrop-blur-md sticky top-0 z-10">
+            <h1 class="text-2xl font-bold text-white">Live Intelligence <span class="text-slate-500 font-normal">/ Coimbatore</span></h1>
+            <div class="flex items-center space-x-6">
+                <button class="text-slate-400 hover:text-white transition relative">
+                    <i class="fas fa-bell text-xl"></i>
+                    <span class="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-slate-900"></span>
+                </button>
+                <button class="bg-indigo-500 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.4)] transition">
+                    <i class="fas fa-download mr-2"></i> Export Data
+                </button>
+            </div>
+        </header>
+
+        <div class="p-10 space-y-8">
+            
+            <!-- Stat Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8" id="radar-section">
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl group-hover:bg-blue-500/20 transition"></div>
+                    <p class="text-sm text-slate-400 font-semibold uppercase tracking-wider">Total Disruptions</p>
+                    <h3 class="text-5xl font-black text-white mt-2" id="stat-total">-</h3>
+                </div>
+                
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-red-500/10 rounded-full blur-2xl group-hover:bg-red-500/20 transition"></div>
+                    <p class="text-sm text-slate-400 font-semibold uppercase tracking-wider">Critical Severity (High)</p>
+                    <h3 class="text-5xl font-black text-red-500 mt-2 drop-shadow-[0_0_10px_rgba(239,68,68,0.3)]" id="stat-high">-</h3>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-green-500/10 rounded-full blur-2xl group-hover:bg-green-500/20 transition"></div>
+                    <p class="text-sm text-slate-400 font-semibold uppercase tracking-wider">AI Resolution Rate</p>
+                    <h3 class="text-5xl font-black text-green-400 mt-2">100%</h3>
+                </div>
+            </div>
+
+            <!-- Map Section -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-2 shadow-xl relative">
+                <div class="absolute top-6 left-6 z-10 bg-slate-900/90 backdrop-blur border border-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg flex items-center">
+                    <span class="w-2 h-2 bg-red-500 rounded-full mr-2 animate-pulse"></span> Live Sensor Tracking
+                </div>
+                <div id="map"></div>
+            </div>
+
+            <!-- Tickets Table -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl" id="tickets-section">
+                <div class="px-8 py-6 border-b border-slate-800 flex justify-between items-center bg-slate-900">
+                    <h3 class="text-lg font-bold text-white">Active Master Tickets</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-800/50 text-slate-400 text-xs uppercase tracking-widest border-b border-slate-800">
+                                <th class="px-8 py-5 font-bold">Ticket ID</th>
+                                <th class="px-8 py-5 font-bold">Category</th>
+                                <th class="px-8 py-5 font-bold">Severity</th>
+                                <th class="px-8 py-5 font-bold">Coordinates</th>
+                                <th class="px-8 py-5 font-bold text-right">AI Dispatch</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tickets-table-body" class="divide-y divide-slate-800/50">
+                            <tr><td colspan="5" class="text-center py-12 text-slate-500 text-sm">Initializing Secure Connection...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- AI Action Plan Modal -->
+    <div id="ai-modal" class="fixed inset-0 bg-slate-950/80 z-50 items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] w-full max-w-2xl overflow-hidden">
+            <div class="px-8 py-5 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
+                <h3 class="text-xl font-bold text-white flex items-center"><i class="fas fa-magic text-indigo-400 mr-3"></i> Auto-Drafted Dispatch</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-white transition focus:outline-none">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+            </div>
+            <div class="p-8 min-h-[250px]">
+                <div id="ai-loading" class="flex flex-col items-center justify-center py-10 hidden">
+                    <i class="fas fa-circle-notch fa-spin text-5xl text-indigo-500 mb-6 drop-shadow-[0_0_10px_rgba(99,102,241,0.5)]"></i>
+                    <p class="text-slate-400 text-lg">Gemini 2.5 Flash is analyzing parameters...</p>
+                </div>
+                <div id="ai-content" class="prose prose-invert max-w-none text-slate-300"></div>
+            </div>
+            <div class="px-8 py-5 border-t border-slate-800 bg-slate-800/30 flex justify-end space-x-4">
+                <button onclick="closeModal()" class="px-5 py-2.5 border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition font-medium">Cancel</button>
+                <button onclick="closeModal(); alert('Dispatched successfully to contractor!');" class="px-6 py-2.5 bg-indigo-500 text-white rounded-lg hover:bg-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.4)] transition font-bold flex items-center">
+                    <i class="fas fa-paper-plane mr-2"></i> Issue Order
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "http://127.0.0.1:8000/api/v1";
+        let map;
+
+        // Custom Markers
+        const createIcon = (color) => {
+            return new L.Icon({
+                iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
+                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+            });
+        };
+        const redIcon = createIcon('red');
+        const orangeIcon = createIcon('orange');
+        const blueIcon = createIcon('blue');
+
+        async function initDashboard() {
+            try {
+                const response = await fetch(`${API_BASE}/admin/reports/master`);
+                if (!response.ok) throw new Error("Backend error");
+                const tickets = await response.json();
+                
+                const sevVal = { "HIGH": 3, "MEDIUM": 2, "LOW": 1 };
+                tickets.sort((a, b) => sevVal[b.severity] - sevVal[a.severity]);
+
+                updateStats(tickets);
+                initMap(tickets);
+                populateTable(tickets);
+            } catch (err) {
+                console.error(err);
+                document.getElementById('tickets-table-body').innerHTML = `<tr><td colspan="5" class="text-center text-red-400 py-12">System Offline. Ensure FastAPI is running on port 8000.</td></tr>`;
+            }
+        }
+
+        function updateStats(tickets) {
+            document.getElementById('stat-total').innerText = tickets.length;
+            document.getElementById('stat-high').innerText = tickets.filter(t => t.severity === 'HIGH').length;
+        }
+
+        function initMap(tickets) {
+            if (tickets.length === 0) return;
+            const avgLat = tickets.reduce((s, t) => s + t.latitude, 0) / tickets.length;
+            const avgLon = tickets.reduce((s, t) => s + t.longitude, 0) / tickets.length;
+
+            map = L.map('map').setView([avgLat, avgLon], 12);
+            
+            // Fixed Map tiles: Standard OpenStreetMap (No API keys ever required)
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap',
+                maxZoom: 19
+            }).addTo(map);
+
+            tickets.forEach(t => {
+                let icon = blueIcon;
+                if(t.severity === 'HIGH') icon = redIcon;
+                else if(t.severity === 'MEDIUM') icon = orangeIcon;
+
+                L.marker([t.latitude, t.longitude], {icon: icon})
+                    .bindTooltip(`<b>${t.category.toUpperCase().replace('_', ' ')}</b>`, {permanent: true, direction: "top", offset: [0, -40], className: 'bg-slate-800 text-white border-slate-700 font-bold shadow-lg'})
+                    .bindPopup(`<div style="color:black;"><b>Ticket #${t.id}</b><br>Type: ${t.category.toUpperCase()}<br>Severity: <b>${t.severity}</b></div>`)
+                    .addTo(map);
+            });
+        }
+
+        // Fetch area name dynamically just like we did in Streamlit!
+        async function getAreaName(lat, lon) {
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+                const data = await res.json();
+                if (data && data.address) {
+                    const road = data.address.road || data.address.street;
+                    const suburb = data.address.suburb || data.address.neighbourhood || data.address.city_district;
+                    let parts = [];
+                    if (road) parts.push(road);
+                    if (suburb) parts.push(suburb);
+                    if (parts.length > 0) return parts.join(", ");
+                    
+                    // Fallback to first two pieces of display name
+                    return data.display_name.split(",").slice(0, 2).join(", ");
+                }
+                return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+            } catch (err) {
+                return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+            }
+        }
+
+        async function populateTable(tickets) {
+            const tbody = document.getElementById('tickets-table-body');
+            tbody.innerHTML = '';
+
+            for (const t of tickets) {
+                let badgeClass = "bg-blue-500/10 border border-blue-500/20 text-blue-400";
+                if(t.severity === 'HIGH') badgeClass = "bg-red-500/10 border border-red-500/20 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.2)]";
+                else if(t.severity === 'MEDIUM') badgeClass = "bg-orange-500/10 border border-orange-500/20 text-orange-400";
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-800/50 transition cursor-default";
+                
+                // Show loading text while we fetch the area name
+                tr.innerHTML = `
+                    <td class="px-8 py-5 text-sm font-bold text-white">#${t.id}</td>
+                    <td class="px-8 py-5 text-sm text-slate-300 capitalize">
+                        <i class="fas fa-map-marker-alt text-slate-500 mr-2"></i>${t.category.replace('_', ' ')}
+                    </td>
+                    <td class="px-8 py-5">
+                        <span class="px-3 py-1.5 rounded-lg text-xs font-bold ${badgeClass}">${t.severity}</span>
+                    </td>
+                    <td class="px-8 py-5 text-sm text-slate-400" id="area-t${t.id}">
+                        <i class="fas fa-spinner fa-spin text-slate-600 mr-2"></i> Locating...
+                    </td>
+                    <td class="px-8 py-5 text-right">
+                        <button onclick="generatePlan(${t.id})" class="text-indigo-400 hover:text-white bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500 hover:shadow-[0_0_15px_rgba(99,102,241,0.5)] px-4 py-2 rounded-lg text-sm font-bold transition flex items-center justify-end ml-auto">
+                            <i class="fas fa-bolt mr-2"></i> Auto Draft
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+
+                // Fetch the actual area name in the background and update the cell
+                getAreaName(t.latitude, t.longitude).then(areaName => {
+                    const el = document.getElementById(`area-t${t.id}`);
+                    if (el) el.innerText = areaName;
+                });
+            }
+        }
+
+        async function generatePlan(ticketId) {
+            const modal = document.getElementById('ai-modal');
+            const loading = document.getElementById('ai-loading');
+            const content = document.getElementById('ai-content');
+            
+            modal.classList.add('active');
+            content.innerHTML = '';
+            loading.classList.remove('hidden');
+
+            try {
+                const res = await fetch(`${API_BASE}/admin/reports/${ticketId}/action-plan`, { method: 'POST' });
+                if (!res.ok) throw new Error("Failed to fetch");
+                const data = await res.json();
+                
+                loading.classList.add('hidden');
+                content.innerHTML = marked.parse(data.email_draft);
+            } catch (err) {
+                console.error(err);
+                loading.classList.add('hidden');
+                content.innerHTML = `<p class="text-red-400 font-bold"><i class="fas fa-exclamation-triangle mr-2"></i> Backend connection failed. Is FastAPI running on port 8000?</p>`;
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('ai-modal').classList.remove('active');
+        }
+
+        // Live Auto-Refresh every 5 seconds so Govt Admin never has to refresh manually!
+        initDashboard();
+        setInterval(initDashboard, 5000);
+    </script>
+</body>
+</html>

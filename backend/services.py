@@ -3,26 +3,28 @@ import json
 from google import genai
 from google.genai import types
 
-def analyze_damage_image(image_bytes: bytes, mime_type: str = 'image/jpeg'):
+def analyze_damage_image(image_bytes: bytes, mime_type: str = 'image/jpeg', user_description: str = ""):
     """
-    Analyzes an image using Gemini Vision API to determine damage type and severity.
+    Analyzes an image and user description using Gemini to determine damage type and severity.
     """
-    # Initialize the client. It will automatically use the GEMINI_API_KEY environment variable.
     client = genai.Client()
     
-    prompt = """
+    prompt = f"""
     You are an AI assistant for a civic issue reporting system.
     Analyze this image of public infrastructure. 
-    Determine if there is valid damage (like a water pipe burst, pothole, broken streetlight, etc).
-    If there is damage, identify the damage type and severity (LOW, MEDIUM, HIGH).
+    The citizen who uploaded this image also provided the following description (typed or via voice):
+    "{user_description}"
+    
+    Determine if there is valid damage. Use BOTH the image and the user's description to figure out the exact category. 
+    For example, if the description says "pipe water leakage" and the image shows water, the category MUST be "water_leakage".
     
     Return your analysis STRICTLY as a JSON object with the following schema:
-    {
+    {{
         "is_valid_damage": boolean,
-        "damage_type": "string (e.g., 'pipe_burst', 'pothole', 'none')",
+        "damage_type": "string (e.g., 'pipe_burst', 'pothole', 'water_leakage', 'none')",
         "severity": "string ('LOW', 'MEDIUM', 'HIGH', or null)",
         "description": "string (brief description of the issue seen in the photo)"
-    }
+    }}
     """
     
     try:

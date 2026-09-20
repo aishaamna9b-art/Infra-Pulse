@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, UploadFile, File, Form, HTTPException
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
 import json
+from fastapi.middleware.cors import CORSMiddleware
 import models
 from database import engine, get_db
 from services import analyze_damage_image, generate_action_plan
@@ -13,6 +14,15 @@ load_dotenv()
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Infra-Pulse API", description="Backend for Civic Issue Reporting System")
+
+# Enable CORS for the new frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
 
 @app.get("/")
 def read_root():
@@ -35,8 +45,8 @@ async def create_report(
     # 1. Read the image
     image_bytes = await file.read()
     
-    # 2. Call Gemini AI Vision to verify the damage
-    ai_analysis = analyze_damage_image(image_bytes, mime_type=file.content_type)
+    # 2. Call Gemini AI Vision to verify the damage using BOTH image and voice text
+    ai_analysis = analyze_damage_image(image_bytes, mime_type=file.content_type, user_description=description or "")
     
     master_ticket = None
     if ai_analysis.get("is_valid_damage"):
