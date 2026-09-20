@@ -43,6 +43,11 @@ export async function getUnsyncedComplaints() {
   return db.getAllFromIndex('complaints', 'by-sync-status', 0);
 }
 
+export async function getAllComplaints() {
+  const db = await initDB();
+  return db.getAll('complaints');
+}
+
 export async function markAsSynced(id: string) {
   const db = await initDB();
   const complaint = await db.get('complaints', id);

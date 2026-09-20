@@ -1,13 +1,16 @@
 "use client";
 
 import React, { useState, useRef } from 'react';
-import { Camera, MapPin, CheckCircle, Upload, Image as ImageIcon, Map } from 'lucide-react';
+import { Camera, MapPin, CheckCircle, Upload, Image as ImageIcon, Map, Loader2, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AudioRecorder from './AudioRecorder';
 import { saveComplaint } from '@/lib/db';
+import { useLanguage } from '@/lib/LanguageContext';
 
 export default function ComplaintForm() {
+  const { t } = useLanguage();
   const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
+  const [photo, setPhoto] = useState<File | null>(null);
   
   // Location States
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -15,6 +18,7 @@ export default function ComplaintForm() {
   const [isLocating, setIsLocating] = useState(false);
   
   const [transcription, setTranscription] = useState<string>('');
+  const [category, setCategory] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   
@@ -24,12 +28,20 @@ export default function ComplaintForm() {
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setPhoto(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setPhotoDataUrl(reader.result as string);
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const removePhoto = () => {
+    setPhoto(null);
+    setPhotoDataUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
   };
 
   const fetchLocation = () => {
@@ -71,8 +83,8 @@ export default function ComplaintForm() {
   };
 
   const handleSubmit = async () => {
-    if (!transcription || (!location && !address)) {
-      alert("Please provide at least a voice description and a location (GPS or manual address).");
+    if (!transcription || (!location && !address) || !category) {
+      alert("Please provide at least a voice description, a location, and a category.");
       return;
     }
 
@@ -87,14 +99,18 @@ export default function ComplaintForm() {
         formData.append("description", transcription);
         formData.append("latitude", location?.latitude?.toString() || "0");
         formData.append("longitude", location?.longitude?.toString() || "0");
+        formData.append("category", category);
         
-        if (photoDataUrl) {
+        if (photo) {
+          formData.append("file", photo);
+        } else if (photoDataUrl) {
           const res = await fetch(photoDataUrl);
           const blob = await res.blob();
           formData.append("file", blob, "photo.jpg");
         } else {
           // Backend expects a file, send empty dummy if none
-          formData.append("file", new Blob([""]), "empty.jpg");
+          const dummyBlob = new Blob([""], { type: "image/jpeg" });
+          formData.append("file", dummyBlob, "empty.jpg");
         }
 
         const response = await fetch("/api/v1/reports", {
@@ -116,6 +132,7 @@ export default function ComplaintForm() {
       await saveComplaint({
         id,
         description: transcription,
+        category: category || "uncategorized",
         photoDataUrl: photoDataUrl || undefined,
         location: {
           latitude: location?.latitude || 0,
@@ -157,9 +174,11 @@ export default function ComplaintForm() {
           onClick={() => {
             setIsSuccess(false);
             setPhotoDataUrl(null);
+            setPhoto(null);
             setLocation(null);
             setAddress('');
             setTranscription('');
+            setCategory('');
           }}
         >
           Report Another Issue
@@ -172,105 +191,152 @@ export default function ComplaintForm() {
     <div className="space-y-6">
       
       {/* Location Section */}
-      <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
-        <h4 className="font-medium text-slate-800 flex items-center gap-2">
-          <Map className="w-4 h-4" /> Location Details
+      <div className="space-y-4 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm transition-all hover:shadow-md">
+        <h4 className="font-semibold text-slate-800 flex items-center gap-2">
+          <div className="bg-blue-100 p-2 rounded-xl text-blue-600">
+            <Map className="w-4 h-4" />
+          </div>
+          Location Details
         </h4>
         
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-3">
           <input 
             type="text" 
             placeholder="Enter address manually..." 
             value={address}
             onChange={(e) => setAddress(e.target.value)}
-            className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-medium text-slate-700"
           />
           <Button 
             variant="outline"
             onClick={fetchLocation}
             disabled={isLocating}
-            className="shrink-0 flex items-center gap-2"
+            className="h-12 px-6 rounded-xl border-slate-200 hover:bg-slate-50 flex items-center gap-2 font-medium"
           >
             {isLocating ? (
-              <Upload className="w-4 h-4 animate-bounce" />
+              <Upload className="w-4 h-4 animate-bounce text-blue-600" />
             ) : (
-              <MapPin className="w-4 h-4" />
+              <MapPin className="w-4 h-4 text-blue-600" />
             )}
             Use GPS
           </Button>
         </div>
         
         {location && (
-          <p className="text-xs text-green-700 font-medium">
+          <div className="flex items-center gap-2 text-xs font-medium text-green-700 bg-green-50 py-2 px-3 rounded-lg border border-green-100 inline-flex mt-2">
+            <CheckCircle className="w-3 h-3" />
             GPS Coordinates Saved: {location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}
-          </p>
+          </div>
         )}
       </div>
 
       {/* Photo Section */}
-      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-        <h4 className="font-medium text-slate-800 flex items-center gap-2">
-          <Camera className="w-4 h-4" /> Photo Evidence
+      <div className="space-y-3 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm transition-all hover:shadow-md">
+        <h4 className="font-semibold text-slate-800 flex items-center gap-2">
+          <div className="bg-orange-100 p-2 rounded-xl text-orange-600">
+            <Camera className="w-4 h-4" />
+          </div>
+          {t.photoEvidence}
         </h4>
-
-        {photoDataUrl ? (
-          <div className="relative border border-slate-300 rounded-lg overflow-hidden h-32 flex items-center justify-center bg-slate-100">
-            <img src={photoDataUrl} alt="Evidence" className="absolute inset-0 w-full h-full object-cover opacity-50" />
-            <div className="z-10 flex flex-col items-center gap-2 bg-white/80 p-2 rounded-lg backdrop-blur-sm">
-              <span className="text-sm font-medium text-green-700 flex items-center gap-1">
-                <CheckCircle className="w-4 h-4" /> Attached
-              </span>
-              <Button variant="outline" size="sm" onClick={() => setPhotoDataUrl(null)} className="h-7 text-xs">
-                Remove
+        
+        {!photoDataUrl ? (
+          <div 
+            onClick={() => fileInputRef.current?.click()}
+            className="h-32 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-500 cursor-pointer hover:bg-slate-50 hover:border-slate-300 hover:text-slate-700 transition-all group"
+          >
+            <Camera className="w-8 h-8 mb-2 text-slate-400 group-hover:scale-110 transition-transform" />
+            <span className="text-sm font-medium">{t.tapToUpload}</span>
+          </div>
+        ) : (
+          <div className="relative h-48 rounded-xl overflow-hidden shadow-sm group">
+            <img src={photoDataUrl} alt="Evidence" className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
+              <Button 
+                variant="secondary" 
+                size="sm" 
+                onClick={() => fileInputRef.current?.click()}
+                className="bg-white/90 hover:bg-white text-slate-900 font-semibold"
+              >
+                {t.retakePhoto}
+              </Button>
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                onClick={removePhoto}
+                className="bg-red-500/90 hover:bg-red-600 text-white"
+              >
+                {t.removePhoto}
               </Button>
             </div>
           </div>
-        ) : (
-          <div className="flex gap-3">
-            <Button 
-              variant="outline" 
-              onClick={() => cameraInputRef.current?.click()}
-              className="flex-1 h-12 flex items-center justify-center gap-2 bg-white"
-            >
-              <Camera className="w-4 h-4" /> Camera
-            </Button>
-            <input 
-              type="file" accept="image/*" capture="environment" 
-              ref={cameraInputRef} className="hidden" onChange={handlePhotoUpload}
-            />
-
-            <Button 
-              variant="outline" 
-              onClick={() => fileInputRef.current?.click()}
-              className="flex-1 h-12 flex items-center justify-center gap-2 bg-white"
-            >
-              <ImageIcon className="w-4 h-4" /> Gallery
-            </Button>
-            <input 
-              type="file" accept="image/*" 
-              ref={fileInputRef} className="hidden" onChange={handlePhotoUpload}
-            />
-          </div>
         )}
+        
+        <input 
+          type="file" accept="image/*" 
+          ref={fileInputRef} className="hidden" onChange={handlePhotoUpload}
+        />
       </div>
 
-      {/* Voice Section */}
-      <AudioRecorder onTranscriptionComplete={setTranscription} />
-      
-      {transcription && (
-        <div className="bg-green-50 p-4 rounded-xl border border-green-100 text-sm shadow-inner">
-          <h4 className="font-semibold text-green-800 mb-1">Transcribed Issue:</h4>
-          <p className="text-green-900">{transcription}</p>
+      {/* Manual Category Selection */}
+      <div className="space-y-4 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm transition-all hover:shadow-md">
+        <h4 className="font-semibold text-slate-800 flex items-center gap-2">
+          <div className="bg-purple-100 p-2 rounded-xl text-purple-600">
+            <CheckCircle className="w-4 h-4" />
+          </div>
+          {t.issueCategory}
+        </h4>
+        
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-medium text-slate-700 appearance-none"
+        >
+          <option value="" disabled>{t.selectCategory}</option>
+          <option value="pothole">{t.categoryPothole}</option>
+          <option value="streetlight">{t.categoryStreetlight}</option>
+          <option value="garbage">{t.categoryGarbage}</option>
+          <option value="water_leakage">{t.categoryWater}</option>
+          <option value="other">{t.categoryOther}</option>
+        </select>
+      </div>
+
+      {/* Description Section */}
+      <div className="space-y-4 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm transition-all hover:shadow-md">
+        <h4 className="font-semibold text-slate-800 flex items-center gap-2">
+          <div className="bg-green-100 p-2 rounded-xl text-green-600">
+            <CheckCircle className="w-4 h-4" />
+          </div>
+          {t.issueDesc}
+        </h4>
+        
+        <textarea
+          value={transcription}
+          onChange={(e) => setTranscription(e.target.value)}
+          placeholder={t.issueDescPlaceholder}
+          className="w-full h-24 p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-medium text-slate-700 resize-none"
+        />
+
+        <div className="border-t border-slate-100 pt-4">
+          <p className="text-xs text-slate-500 font-medium mb-3 text-center">{t.preferSpeaking}</p>
+          <AudioRecorder onTranscriptionComplete={setTranscription} />
         </div>
-      )}
+      </div>
 
       {/* Submit Button */}
       <Button 
         onClick={handleSubmit}
-        disabled={isSubmitting || !transcription || (!location && !address)}
-        className="w-full h-12 text-lg font-medium bg-blue-600 hover:bg-blue-700 shadow-md"
+        disabled={isSubmitting || !transcription || (!location && !address) || !category}
+        className="w-full h-14 text-lg font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl shadow-lg shadow-blue-200 transition-all active:scale-[0.98] disabled:opacity-50 disabled:shadow-none uppercase tracking-wide"
       >
-        {isSubmitting ? 'Saving...' : 'Submit Complaint'}
+        {isSubmitting ? (
+          <span className="flex items-center gap-2">
+            <Loader2 className="w-5 h-5 animate-spin" /> {t.savingIssue}
+          </span>
+        ) : (
+          <span className="flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5" /> {t.submitReport}
+          </span>
+        )}
       </Button>
     </div>
   );

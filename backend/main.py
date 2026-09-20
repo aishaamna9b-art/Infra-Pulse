@@ -38,6 +38,7 @@ from utils import calculate_distance
 @app.post("/api/v1/reports")
 async def create_report(
     description: str = Form(None),
+    category: str = Form(None),
     latitude: float = Form(...),
     longitude: float = Form(...),
     file: UploadFile = File(...),
@@ -49,23 +50,27 @@ async def create_report(
     if not image_bytes or len(image_bytes) == 0:
         ai_analysis = {
             "is_valid_damage": True,
-            "damage_type": "uncategorized",
+            "damage_type": category or "uncategorized",
             "severity": "LOW",
             "description": description or "No image provided."
         }
     else:
         # 2. Call Gemini AI Vision to verify the damage (run in threadpool to avoid async SDK conflicts)
-        ai_analysis = await run_in_threadpool(analyze_damage_image, image_bytes, file.content_type, description or "")
+        ai_analysis = await run_in_threadpool(analyze_damage_image, image_bytes, file.content_type, f"Category chosen: {category}. Description: {description or ''}")
         
         # If AI verification failed due to error, still let it through as a ticket
         if ai_analysis.get("damage_type") == "error":
             ai_analysis["is_valid_damage"] = True
+            ai_analysis["damage_type"] = category or "uncategorized"
             ai_analysis["severity"] = "LOW"
     
     master_ticket = None
     closest_ticket = None
     if ai_analysis.get("is_valid_damage"):
+        # Prefer AI damage_type, but fallback to manual category if AI says 'none' or 'uncategorized'
         damage_category = ai_analysis.get("damage_type")
+        if damage_category in ["none", "uncategorized"] and category:
+            damage_category = category
         
         # 3. Smart Deduplication: Find nearby open tickets of the same category
         open_tickets = db.query(models.MasterTicket).filter(
@@ -147,5 +152,16 @@ def get_master_tickets(db: Session = Depends(get_db)):
     Fetch all master tickets to plot on the admin dashboard map.
     """
     tickets = db.query(models.MasterTicket).all()
-    return tickets
+    result = []
+    for t in tickets:
+        result.append({
+            "id": t.id,
+            "category": t.category,
+            "severity": t.severity,
+            "status": t.status,
+            "latitude": t.latitude,
+            "longitude": t.longitude,
+            "report_count": len(t.reports)
+        })
+    return result
 
