@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, UploadFile, File, Form, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
 import json
@@ -14,6 +15,15 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Infra-Pulse API", description="Backend for Civic Issue Reporting System")
 
+# Configure CORS for Next.js frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Infra-Pulse API"}
@@ -22,6 +32,7 @@ def read_root():
 def health_check(db: Session = Depends(get_db)):
     return {"status": "healthy", "database": "connected"}
 
+from fastapi.concurrency import run_in_threadpool
 from utils import calculate_distance
 
 @app.post("/api/v1/reports")
@@ -35,10 +46,24 @@ async def create_report(
     # 1. Read the image
     image_bytes = await file.read()
     
-    # 2. Call Gemini AI Vision to verify the damage
-    ai_analysis = analyze_damage_image(image_bytes, mime_type=file.content_type)
+    if not image_bytes or len(image_bytes) == 0:
+        ai_analysis = {
+            "is_valid_damage": True,
+            "damage_type": "uncategorized",
+            "severity": "LOW",
+            "description": description or "No image provided."
+        }
+    else:
+        # 2. Call Gemini AI Vision to verify the damage (run in threadpool to avoid async SDK conflicts)
+        ai_analysis = await run_in_threadpool(analyze_damage_image, image_bytes, file.content_type)
+        
+        # If AI verification failed due to error, still let it through as a ticket
+        if ai_analysis.get("damage_type") == "error":
+            ai_analysis["is_valid_damage"] = True
+            ai_analysis["severity"] = "LOW"
     
     master_ticket = None
+    closest_ticket = None
     if ai_analysis.get("is_valid_damage"):
         damage_category = ai_analysis.get("damage_type")
         
@@ -48,7 +73,6 @@ async def create_report(
             models.MasterTicket.category == damage_category
         ).all()
         
-        closest_ticket = None
         min_distance = float('inf')
         
         for ticket in open_tickets:
