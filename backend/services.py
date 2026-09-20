@@ -29,7 +29,7 @@ def analyze_damage_image(image_bytes: bytes, mime_type: str = 'image/jpeg', user
     
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-3.6-flash',
             contents=[
                 prompt,
                 types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
@@ -74,7 +74,7 @@ def generate_action_plan(category: str, severity: str, latitude: float, longitud
     
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-3.6-flash',
             contents=prompt
         )
         return response.text.strip()
