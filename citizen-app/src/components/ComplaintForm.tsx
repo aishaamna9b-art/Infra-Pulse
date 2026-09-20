@@ -79,8 +79,40 @@ export default function ComplaintForm() {
     setIsSubmitting(true);
     try {
       const id = Date.now().toString();
+      let isSynced = false;
       
-      // Save locally to IndexedDB for offline support
+      // 1. Try to send directly to the backend
+      try {
+        const formData = new FormData();
+        formData.append("description", transcription);
+        formData.append("latitude", location?.latitude?.toString() || "0");
+        formData.append("longitude", location?.longitude?.toString() || "0");
+        
+        if (photoDataUrl) {
+          const res = await fetch(photoDataUrl);
+          const blob = await res.blob();
+          formData.append("file", blob, "photo.jpg");
+        } else {
+          // Backend expects a file, send empty dummy if none
+          formData.append("file", new Blob([""]), "empty.jpg");
+        }
+
+        const response = await fetch("/api/v1/reports", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (response.ok) {
+          isSynced = true;
+          console.log("Successfully sent to backend:", await response.json());
+        } else {
+          console.error("Backend error:", await response.text());
+        }
+      } catch (networkError) {
+        console.warn("Network error, falling back to offline mode", networkError);
+      }
+      
+      // 2. Save locally to IndexedDB
       await saveComplaint({
         id,
         description: transcription,
@@ -93,6 +125,12 @@ export default function ComplaintForm() {
         timestamp: Date.now(),
       });
       
+      // If we successfully sent it, mark it as synced in the local DB so it doesn't get re-uploaded
+      if (isSynced) {
+        const { markAsSynced } = await import('@/lib/db');
+        await markAsSynced(id);
+      }
+      
       setIsSuccess(true);
     } catch (err) {
       console.error("Error saving complaint", err);
@@ -104,8 +142,12 @@ export default function ComplaintForm() {
 
   if (isSuccess) {
     return (
-      <div className="p-8 text-center bg-white rounded-2xl border border-slate-200">
-        <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+      <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="relative w-20 h-20 mx-auto mb-6 flex items-center justify-center">
+          <div className="absolute inset-0 bg-green-200 rounded-full animate-ping opacity-75 duration-700"></div>
+          <div className="absolute inset-0 bg-green-100 rounded-full"></div>
+          <CheckCircle className="w-10 h-10 text-green-600 relative z-10 animate-[bounce_1s_ease-out]" />
+        </div>
         <h3 className="text-xl font-bold text-slate-800">Complaint Logged!</h3>
         <p className="text-slate-600 mt-2">
           Your complaint has been saved locally. It will automatically sync to our servers when you are online.

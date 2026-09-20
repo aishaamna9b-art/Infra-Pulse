@@ -19,13 +19,18 @@ export const metadata: Metadata = {
   themeColor: "#2563eb",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+import OfflineBanner from "@/components/OfflineBanner";
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <OfflineBanner />
+        {children}
+      </body>
     </html>
   );
 }

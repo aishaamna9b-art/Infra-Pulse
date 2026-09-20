@@ -126,14 +126,25 @@ export default function AudioRecorder({ onTranscriptionComplete }: AudioRecorder
             )}
           </Button>
         ) : (
-          <div className="relative">
-            <div className="absolute inset-0 bg-red-500 rounded-full animate-ping opacity-75"></div>
+          <div className="relative flex items-center justify-center">
+            {/* Waveform rings */}
+            <div className="absolute w-24 h-24 bg-red-100 rounded-full animate-ping opacity-50"></div>
+            <div className="absolute w-28 h-28 border border-red-200 rounded-full animate-pulse"></div>
+            
             <Button 
               onClick={stopRecording} 
               variant="destructive"
-              className="relative w-20 h-20 rounded-full shadow-lg transition-transform active:scale-95"
+              className="relative w-20 h-20 rounded-full shadow-lg transition-transform active:scale-95 z-10 flex items-center justify-center overflow-hidden"
             >
-              <Square className="w-8 h-8 text-white fill-white" />
+              {/* Vertical waveform bars */}
+              <div className="absolute inset-0 flex items-center justify-center gap-1 opacity-20">
+                <div className="w-1 bg-white h-4 animate-[pulse_1s_ease-in-out_infinite]"></div>
+                <div className="w-1 bg-white h-8 animate-[pulse_1.2s_ease-in-out_infinite_0.2s]"></div>
+                <div className="w-1 bg-white h-5 animate-[pulse_0.8s_ease-in-out_infinite_0.4s]"></div>
+                <div className="w-1 bg-white h-7 animate-[pulse_1.1s_ease-in-out_infinite_0.1s]"></div>
+                <div className="w-1 bg-white h-3 animate-[pulse_0.9s_ease-in-out_infinite_0.3s]"></div>
+              </div>
+              <Square className="w-6 h-6 text-white fill-white relative z-20" />
             </Button>
           </div>
         )}
