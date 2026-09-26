@@ -24,6 +24,20 @@ def get_area_name(lat, lon):
     except Exception:
         return f"{lat:.4f}, {lon:.4f}"
 
+@st.cache_data
+def get_full_address(lat, lon):
+    try:
+        location = geolocator.reverse((lat, lon), exactly_one=True)
+        if location:
+            # Take only the first 3 relevant parts to make it a clean, exact single line
+            parts = [p.strip() for p in location.address.split(",")]
+            if len(parts) >= 3:
+                return f"{parts[0]}, {parts[1]}, {parts[2]}"
+            return ", ".join(parts)
+        return "Unknown Area"
+    except Exception:
+        return f"{lat:.6f}, {lon:.6f}"
+
 API_BASE_URL = "http://127.0.0.1:8000/api/v1"
 
 st.set_page_config(page_title="Infra-Pulse Command Center", page_icon="🏛️", layout="wide", initial_sidebar_state="expanded")
@@ -234,7 +248,7 @@ elif selected == "Live Incident Map":
             else:
                 for idx, row in df.iterrows():
                     color = "darkred" if row["severity"] == "HIGH" else "orange" if row["severity"] == "MEDIUM" else "blue"
-                    area_name = get_area_name(row['latitude'], row['longitude'])
+                    area_name = get_full_address(row['latitude'], row['longitude'])
                     folium.Marker(
                         [row['latitude'], row['longitude']],
                         popup=folium.Popup(f"<b>Ticket #{row['id']}</b><br>Cat: {row['category']}<br>Sev: {row['severity']}", max_width=200),
@@ -269,6 +283,9 @@ elif selected == "Ticket Management":
         if 'report_count' not in filtered_df.columns:
             filtered_df['report_count'] = 1 # Fallback if API hasn't updated
             
+        # Filter out mock zero-report tickets entirely
+        filtered_df = filtered_df[filtered_df['report_count'] > 0]
+        
         master_df = filtered_df[filtered_df['report_count'] >= 5]
         regular_df = filtered_df[filtered_df['report_count'] < 5]
         
@@ -281,14 +298,14 @@ elif selected == "Ticket Management":
             st.info("No escalated master tickets at this time.")
         else:
             for idx, row in master_df.iterrows():
-                area = get_area_name(row['latitude'], row['longitude'])
                 sev_color = "🔴" if row['severity'] == 'HIGH' else "🟠" if row['severity'] == 'MEDIUM' else "🔵"
                 report_count = row.get('report_count', 1)
                 
-                with st.expander(f"{sev_color} 👑 MASTER TICKET #{row['id']} | {row['category'].upper()} | {area} | Status: {row['status']} | 👥 {report_count} Reports"):
+                with st.expander(f"{sev_color} 👑 MASTER TICKET #{row['id']} | {row['category'].upper()} | Status: {row['status']} | 👥 {report_count} Reports"):
                     ec1, ec2 = st.columns([1, 1])
                     with ec1:
-                        st.write(f"**Location:** {area}")
+                        exact_loc = get_full_address(row['latitude'], row['longitude'])
+                        st.write(f"**Exact Location:** {exact_loc}")
                         st.write(f"**Registered:** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
                         
                         new_status = st.selectbox("Update Status", ["Open", "In Progress", "Resolved"], index=["Open", "In Progress", "Resolved"].index(row['status']), key=f"stat_{row['id']}")
@@ -322,15 +339,15 @@ elif selected == "Ticket Management":
             st.info("No standard tickets.")
         else:
             for idx, row in regular_df.iterrows():
-                area = get_area_name(row['latitude'], row['longitude'])
                 sev_color = "🔴" if row['severity'] == 'HIGH' else "🟠" if row['severity'] == 'MEDIUM' else "🔵"
                 report_count = row.get('report_count', 1)
                 
-                with st.expander(f"{sev_color} Ticket #{row['id']} | {row['category'].upper()} | {area} | Status: {row['status']} | 👥 {report_count} Reports"):
+                with st.expander(f"{sev_color} Ticket #{row['id']} | {row['category'].upper()} | Status: {row['status']} | 👥 {report_count} Reports"):
                     ec1, ec2 = st.columns([1, 1])
                     
                     with ec1:
-                        st.write(f"**Location:** {area}")
+                        exact_loc = get_full_address(row['latitude'], row['longitude'])
+                        st.write(f"**Exact Location:** {exact_loc}")
                         st.write(f"**Registered:** {datetime.now().strftime('%Y-%m-%d %H:%M')}") # Mock date
                         
                         new_status = st.selectbox("Update Status", ["Open", "In Progress", "Resolved"], index=["Open", "In Progress", "Resolved"].index(row['status']), key=f"stat_{row['id']}")
