@@ -24,6 +24,20 @@ def get_area_name(lat, lon):
     except Exception:
         return f"{lat:.4f}, {lon:.4f}"
 
+@st.cache_data
+def get_full_address(lat, lon):
+    try:
+        location = geolocator.reverse((lat, lon), exactly_one=True)
+        if location:
+            # Take only the first 3 relevant parts to make it a clean, exact single line
+            parts = [p.strip() for p in location.address.split(",")]
+            if len(parts) >= 3:
+                return f"{parts[0]}, {parts[1]}, {parts[2]}"
+            return ", ".join(parts)
+        return "Unknown Area"
+    except Exception:
+        return f"{lat:.6f}, {lon:.6f}"
+
 API_BASE_URL = "http://127.0.0.1:8000/api/v1"
 
 st.set_page_config(page_title="Infra-Pulse Command Center", page_icon="🏛️", layout="wide", initial_sidebar_state="expanded")
@@ -126,8 +140,8 @@ with st.sidebar:
     
     selected = option_menu(
         menu_title=None,
-        options=["Dashboard Overview", "Live Incident Map", "Ticket Management", "System Settings"],
-        icons=["house", "map", "list-task", "gear"],
+        options=["Dashboard Overview", "Severity Analysis", "Ticket Management", "System Settings"],
+        icons=["house", "bar-chart", "list-task", "gear"],
         menu_icon="cast",
         default_index=0,
         styles={
@@ -138,6 +152,21 @@ with st.sidebar:
         }
     )
     
+    st.markdown("### Live Map")
+    if df.empty:
+        st.info("No geospatial data.")
+    else:
+        avg_lat = df['latitude'].mean()
+        avg_lon = df['longitude'].mean()
+        m = folium.Map(location=[avg_lat, avg_lon], zoom_start=12, tiles="OpenStreetMap")
+        for idx, row in df.iterrows():
+            color = "darkred" if row["severity"] == "HIGH" else "orange" if row["severity"] == "MEDIUM" else "blue"
+            folium.Marker(
+                [row['latitude'], row['longitude']],
+                icon=folium.Icon(color=color, icon="info-sign")
+            ).add_to(m)
+        st_folium(m, width="100%", height=300, returned_objects=[])
+
     st.sidebar.markdown("<br><br><br>", unsafe_allow_html=True)
     if st.sidebar.button("🔒 Secure Logout", use_container_width=True):
         del st.session_state["password_correct"]
@@ -204,44 +233,28 @@ if selected == "Dashboard Overview":
                         st.markdown(f"<span style='color: #dc2626; font-size: 13px; font-weight: bold;'>● HIGH SEVERITY</span>", unsafe_allow_html=True)
                         st.divider()
 
-# --- PAGE: LIVE INCIDENT MAP ---
-elif selected == "Live Incident Map":
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.title("Live Incident Map")
-    with col2:
-        st.write("")
-        st.write("")
-        map_mode = st.radio("Map View", ["Heatmap (Density)", "Standard Markers"], horizontal=True, label_visibility="collapsed")
-    
-    st.markdown("Visualizing ticket density and exact coordinates. High density areas glow red.")
+# --- PAGE: SEVERITY ANALYSIS ---
+elif selected == "Severity Analysis":
+    st.title("Severity Analysis")
+    st.markdown("Bar graph representing the number of complaints raised along with severity.")
     
     if df.empty:
-        st.info("No geospatial data available.")
+        st.info("No data available.")
     else:
         with st.container(border=True):
-            avg_lat = df['latitude'].mean()
-            avg_lon = df['longitude'].mean()
-            
-            # Using OpenStreetMap universally to avoid API Key tile errors
-            m = folium.Map(location=[avg_lat, avg_lon], zoom_start=14, tiles="OpenStreetMap")
-            
-            if map_mode == "Heatmap (Density)":
-                # Create Heatmap data
-                heat_data = [[row['latitude'], row['longitude'], row['severity_score']] for idx, row in df.iterrows()]
-                # Add HeatMap: Sivappu (RED) glow
-                HeatMap(heat_data, radius=25, blur=15, gradient={0.4: 'blue', 0.65: 'orange', 1: 'red'}).add_to(m)
-            else:
-                for idx, row in df.iterrows():
-                    color = "darkred" if row["severity"] == "HIGH" else "orange" if row["severity"] == "MEDIUM" else "blue"
-                    area_name = get_area_name(row['latitude'], row['longitude'])
-                    folium.Marker(
-                        [row['latitude'], row['longitude']],
-                        popup=folium.Popup(f"<b>Ticket #{row['id']}</b><br>Cat: {row['category']}<br>Sev: {row['severity']}", max_width=200),
-                        icon=folium.Icon(color=color, icon="info-sign")
-                    ).add_to(m)
-                    
-            st_folium(m, width="100%", height=600, returned_objects=[])
+            severity_counts = df.groupby('severity').size().reset_index(name='Count')
+            fig = px.bar(
+                severity_counts, 
+                x='severity', 
+                y='Count', 
+                color='severity',
+                text_auto=True,
+                title="Complaints Raised by Severity",
+                template='plotly_dark' if st.get_option('theme.base') == 'dark' else 'plotly_white',
+                color_discrete_map={"HIGH": "#dc2626", "MEDIUM": "#f97316", "LOW": "#3b82f6"}
+            )
+            fig.update_layout(margin=dict(l=20, r=20, t=40, b=20))
+            st.plotly_chart(fig, use_container_width=True)
 
 # --- PAGE: TICKET MANAGEMENT ---
 elif selected == "Ticket Management":
@@ -269,6 +282,9 @@ elif selected == "Ticket Management":
         if 'report_count' not in filtered_df.columns:
             filtered_df['report_count'] = 1 # Fallback if API hasn't updated
             
+        # Filter out mock zero-report tickets entirely
+        filtered_df = filtered_df[filtered_df['report_count'] > 0]
+        
         master_df = filtered_df[filtered_df['report_count'] >= 5]
         regular_df = filtered_df[filtered_df['report_count'] < 5]
         
@@ -281,14 +297,14 @@ elif selected == "Ticket Management":
             st.info("No escalated master tickets at this time.")
         else:
             for idx, row in master_df.iterrows():
-                area = get_area_name(row['latitude'], row['longitude'])
                 sev_color = "🔴" if row['severity'] == 'HIGH' else "🟠" if row['severity'] == 'MEDIUM' else "🔵"
                 report_count = row.get('report_count', 1)
                 
-                with st.expander(f"{sev_color} 👑 MASTER TICKET #{row['id']} | {row['category'].upper()} | {area} | Status: {row['status']} | 👥 {report_count} Reports"):
+                with st.expander(f"{sev_color} 👑 MASTER TICKET #{row['id']} | {row['category'].upper()} | Status: {row['status']} | 👥 {report_count} Reports"):
                     ec1, ec2 = st.columns([1, 1])
                     with ec1:
-                        st.write(f"**Coordinates:** {row['latitude']:.6f}, {row['longitude']:.6f}")
+                        exact_loc = get_full_address(row['latitude'], row['longitude'])
+                        st.write(f"**Exact Location:** {exact_loc}")
                         st.write(f"**Registered:** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
                         
                         new_status = st.selectbox("Update Status", ["Open", "In Progress", "Resolved"], index=["Open", "In Progress", "Resolved"].index(row['status']), key=f"stat_{row['id']}")
@@ -322,15 +338,15 @@ elif selected == "Ticket Management":
             st.info("No standard tickets.")
         else:
             for idx, row in regular_df.iterrows():
-                area = get_area_name(row['latitude'], row['longitude'])
                 sev_color = "🔴" if row['severity'] == 'HIGH' else "🟠" if row['severity'] == 'MEDIUM' else "🔵"
                 report_count = row.get('report_count', 1)
                 
-                with st.expander(f"{sev_color} Ticket #{row['id']} | {row['category'].upper()} | {area} | Status: {row['status']} | 👥 {report_count} Reports"):
+                with st.expander(f"{sev_color} Ticket #{row['id']} | {row['category'].upper()} | Status: {row['status']} | 👥 {report_count} Reports"):
                     ec1, ec2 = st.columns([1, 1])
                     
                     with ec1:
-                        st.write(f"**Coordinates:** {row['latitude']:.6f}, {row['longitude']:.6f}")
+                        exact_loc = get_full_address(row['latitude'], row['longitude'])
+                        st.write(f"**Exact Location:** {exact_loc}")
                         st.write(f"**Registered:** {datetime.now().strftime('%Y-%m-%d %H:%M')}") # Mock date
                         
                         new_status = st.selectbox("Update Status", ["Open", "In Progress", "Resolved"], index=["Open", "In Progress", "Resolved"].index(row['status']), key=f"stat_{row['id']}")

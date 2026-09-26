@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, UploadFile, File, Form, HTTPException
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
@@ -56,13 +57,15 @@ async def create_report(
         }
     else:
         # 2. Call Gemini AI Vision to verify the damage (run in threadpool to avoid async SDK conflicts)
-        ai_analysis = await run_in_threadpool(analyze_damage_image, image_bytes, file.content_type, f"Category chosen: {category}. Description: {description or ''}")
+        ai_analysis = await run_in_threadpool(analyze_damage_image, image_bytes, file.content_type, category, description or "")
         
         # If AI verification failed due to error, still let it through as a ticket
         if ai_analysis.get("damage_type") == "error":
             ai_analysis["is_valid_damage"] = True
             ai_analysis["damage_type"] = category or "uncategorized"
             ai_analysis["severity"] = "LOW"
+        elif not ai_analysis.get("is_valid_damage"):
+            raise HTTPException(status_code=400, detail="the images is not similar to given complaint")
     
     master_ticket = None
     closest_ticket = None
@@ -127,8 +130,37 @@ async def create_report(
         "report_id": new_report.id
     }
 
+@app.post("/api/v1/reports/validate-image")
+async def validate_image(
+    file: UploadFile = File(...),
+    category: str = Form(...),
+):
+    """
+    Validates if an uploaded image matches the selected category.
+    """
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="No image provided")
+        
+    ai_analysis = await run_in_threadpool(analyze_damage_image, image_bytes, file.content_type, category, "")
+    
+    if ai_analysis.get("damage_type") == "error":
+        return {"is_valid": True, "message": "Verification bypassed due to error"}
+        
+    if not ai_analysis.get("is_valid_damage"):
+        return {"is_valid": False, "message": "the images is not similar to given complaint"}
+        
+    detected_type = ai_analysis.get("damage_type")
+    if detected_type and detected_type not in [category, "other", "none", "error", "uncategorized"]:
+        return {"is_valid": False, "message": "the images is not similar to given complaint"}
+        
+    return {"is_valid": True, "message": "Image looks good."}
+
+class ActionPlanRequest(BaseModel):
+    address: str = None
+
 @app.post("/api/v1/admin/reports/{master_ticket_id}/action-plan")
-def create_action_plan(master_ticket_id: int, db: Session = Depends(get_db)):
+def create_action_plan(master_ticket_id: int, request: ActionPlanRequest, db: Session = Depends(get_db)):
     ticket = db.query(models.MasterTicket).filter(models.MasterTicket.id == master_ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Master ticket not found")
@@ -137,7 +169,8 @@ def create_action_plan(master_ticket_id: int, db: Session = Depends(get_db)):
         category=ticket.category, 
         severity=ticket.severity, 
         latitude=ticket.latitude, 
-        longitude=ticket.longitude
+        longitude=ticket.longitude,
+        address=request.address
     )
     
     return {
@@ -164,4 +197,29 @@ def get_master_tickets(db: Session = Depends(get_db)):
             "report_count": len(t.reports)
         })
     return result
+
+class StatusUpdate(BaseModel):
+    status: str
+
+@app.put("/api/v1/admin/reports/{master_ticket_id}/status")
+def update_ticket_status(master_ticket_id: int, status_update: StatusUpdate, db: Session = Depends(get_db)):
+    ticket = db.query(models.MasterTicket).filter(models.MasterTicket.id == master_ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Master ticket not found")
+        
+    if status_update.status not in ["Open", "In Progress", "Resolved"]:
+        raise HTTPException(status_code=400, detail="Invalid status")
+        
+    ticket.status = status_update.status
+    db.commit()
+    db.refresh(ticket)
+    
+    return {"status": "success", "new_status": ticket.status}
+
+@app.get("/api/v1/master_tickets/{master_ticket_id}/status")
+def get_master_ticket_status(master_ticket_id: int, db: Session = Depends(get_db)):
+    ticket = db.query(models.MasterTicket).filter(models.MasterTicket.id == master_ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Master ticket not found")
+    return {"status": ticket.status}
 

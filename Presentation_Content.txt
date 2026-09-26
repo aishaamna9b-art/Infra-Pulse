@@ -1,0 +1,55 @@
+# Infra-Pulse: AI-Powered Civic Reporting System
+(Hackathon Pitch Presentation)
+
+---
+
+### Slide 1: Problem Statement
+* Manual & Tedious: Citizens face broken public infrastructure (potholes, pipe leaks) but reporting them to the government is slow and frustrating.
+* Spam & Duplication: Government command centers are overwhelmed by fake reports, duplicates, and unverified complaints.
+* Lack of Visibility: There is no centralized, real-time map for authorities to prioritize severe infrastructural damage.
+
+---
+
+### Slide 2: Proposed Solution
+* Infra-Pulse: A smart, AI-driven civic issue reporting ecosystem.
+* For Citizens: A seamless mobile web app where users simply snap a photo and use a Voice Note to report an issue. 
+* For Government: Gemini AI Vision instantly verifies the photo, categorizes the damage, filters out spam, and plots it on a Live Dark-Mode Map Dashboard for the Command Center.
+
+---
+
+### Slide 3: Target Users
+* Citizens & Residents: Anyone with a smartphone who wants to improve their city without dealing with bureaucratic red tape.
+* Municipal Corporations (Govt): City command centers, mayors, and civil engineers who need a prioritized, AI-verified view of city infrastructure health.
+* Repair Contractors: Teams who receive automatic, AI-drafted work orders for immediate dispatch.
+
+---
+
+### Slide 4: Technical Approach
+* Citizen App: Next.js & React (Mobile-first UI) utilizing Web Speech API for voice-to-text.
+* Govt Command Center: Custom Single Page App (Vanilla JS, Tailwind CSS, Leaflet Maps) with Live Auto-Refresh.
+* Backend: Python FastAPI with SQLite for blazing-fast API performance.
+* AI Engine: Google Gemini 1.5 Flash Vision. Uses Dual Verification (combining the photo + voice text) to accurately categorize severity and draft repair emails.
+* Geospatial Logic: Smart GPS deduplication ensures multiple reports in a 200m radius merge into a single "High Severity" Master Ticket.
+
+---
+
+### Slide 5: Market & Business Potential
+* B2G (Business to Government) SaaS: Sold as a licensing model to municipal corporations and smart cities.
+* Cost Savings: Reduces government call-center and manual verification labor by over 80%.
+* Rapid Resolution: Improves city repair times, directly boosting public satisfaction and political goodwill.
+
+---
+
+### Slide 6: Scalability & Future
+* Cloud Infrastructure: Ready to be migrated to AWS/GCP with PostgreSQL for nation-wide scaling.
+* Real-time IoT: Can integrate with traffic cameras to automatically detect and report road damages without human intervention.
+* Contractor APIs: Seamlessly connecting the dashboard to third-party repair agencies for automated ticketing and billing.
+
+---
+
+### Slide 7: If We Had More Time
+(What we would build next)
+* Native Mobile Apps: Deploy a dedicated iOS/Android app for push notifications and offline reporting.
+* Multilingual AI Voice: Train the AI to perfectly understand regional languages (like pure Tamil, Hindi, etc.) for rural areas.
+* Live Truck Tracking: Allow citizens to track the repair truck arriving at their location, similar to food delivery apps.
+* Drone Integration: Allow government drones to automatically upload bulk images to the FastAPI backend for mass road-scanning.

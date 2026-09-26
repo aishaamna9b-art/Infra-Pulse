@@ -1,58 +1,81 @@
-import { openDB, DBSchema } from 'idb';
+import { openDB, type DBSchema, type IDBPDatabase } from "idb";
+import type { StoredReport } from "@/types/report";
 
 interface CitizenAppDB extends DBSchema {
   complaints: {
     key: string;
-    value: {
-      id: string;
-      description: string;
-      photoDataUrl?: string; // Storing as base64 for offline
-      location: {
-        latitude: number;
-        longitude: number;
-        address?: string;
-      };
-      timestamp: number;
-      synced: number; // 0 for false, 1 for true (IndexedDB cannot index booleans)
-    };
-    indexes: { 'by-sync-status': number };
+    value: StoredReport;
+    indexes: { "by-sync-status": number };
   };
 }
 
-export async function initDB() {
-  return openDB<CitizenAppDB>('infra-pulse-db', 1, {
-    upgrade(db) {
-      const store = db.createObjectStore('complaints', {
-        keyPath: 'id',
-      });
-      store.createIndex('by-sync-status', 'synced');
-    },
-  });
-}
+const DB_NAME = "infra-pulse-db";
+const DB_VERSION = 2;
 
-export async function saveComplaint(complaint: Omit<CitizenAppDB['complaints']['value'], 'synced'>) {
-  const db = await initDB();
-  await db.put('complaints', {
-    ...complaint,
-    synced: 0,
-  });
-}
+let dbPromise: Promise<IDBPDatabase<CitizenAppDB>> | null = null;
 
-export async function getUnsyncedComplaints() {
-  const db = await initDB();
-  return db.getAllFromIndex('complaints', 'by-sync-status', 0);
-}
-
-export async function getAllComplaints() {
-  const db = await initDB();
-  return db.getAll('complaints');
-}
-
-export async function markAsSynced(id: string) {
-  const db = await initDB();
-  const complaint = await db.get('complaints', id);
-  if (complaint) {
-    complaint.synced = 1;
-    await db.put('complaints', complaint);
+export function initDB() {
+  if (!dbPromise) {
+    dbPromise = openDB<CitizenAppDB>(DB_NAME, DB_VERSION, {
+      upgrade(db) {
+        if (!db.objectStoreNames.contains("complaints")) {
+          const store = db.createObjectStore("complaints", { keyPath: "id" });
+          store.createIndex("by-sync-status", "synced");
+        }
+      },
+    });
   }
+  return dbPromise;
 }
+
+export async function saveReport(report: Omit<StoredReport, "synced"> & { synced?: 0 | 1 }) {
+  const db = await initDB();
+  const value: StoredReport = {
+    ...report,
+    synced: report.synced ?? 0,
+  };
+  await db.put("complaints", value);
+  return value;
+}
+
+export async function getUnsyncedReports() {
+  const db = await initDB();
+  return db.getAllFromIndex("complaints", "by-sync-status", 0);
+}
+
+export async function getAllReports() {
+  const db = await initDB();
+  const reports = await db.getAll("complaints");
+  return reports.sort((a, b) => b.timestamp - a.timestamp);
+}
+
+export async function getReport(id: string) {
+  const db = await initDB();
+  return db.get("complaints", id);
+}
+
+export async function markAsSynced(
+  id: string,
+  extras?: Pick<StoredReport, "backendReportId" | "masterTicketId" | "isDuplicate">,
+) {
+  const db = await initDB();
+  const report = await db.get("complaints", id);
+  if (!report) return;
+  await db.put("complaints", {
+    ...report,
+    ...extras,
+    synced: 1,
+    lastError: undefined,
+  });
+}
+
+export async function markSyncFailed(id: string, lastError: string) {
+  const db = await initDB();
+  const report = await db.get("complaints", id);
+  if (!report) return;
+  await db.put("complaints", { ...report, lastError });
+}
+
+export const getAllComplaints = getAllReports;
+export const saveComplaint = saveReport;
+export const getUnsyncedComplaints = getUnsyncedReports;

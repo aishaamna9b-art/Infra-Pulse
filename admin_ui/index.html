@@ -183,7 +183,7 @@
                 populateTable(tickets);
             } catch (err) {
                 console.error(err);
-                document.getElementById('tickets-table-body').innerHTML = `<tr><td colspan="5" class="text-center text-red-400 py-12">System Offline. Ensure FastAPI is running on port 8000.</td></tr>`;
+                document.getElementById('tickets-table-body').innerHTML = `<tr><td colspan="5" class="text-left text-red-400 py-12 px-8 break-all"><b class="text-lg">JS Error Occurred:</b><br/>${err.message}<br/><pre class="mt-2 text-xs text-red-300 whitespace-pre-wrap">${err.stack}</pre></td></tr>`;
             }
         }
 
@@ -192,18 +192,26 @@
             document.getElementById('stat-high').innerText = tickets.filter(t => t.severity === 'HIGH').length;
         }
 
+        let markersLayer = L.layerGroup();
+
         function initMap(tickets) {
             if (tickets.length === 0) return;
-            const avgLat = tickets.reduce((s, t) => s + t.latitude, 0) / tickets.length;
-            const avgLon = tickets.reduce((s, t) => s + t.longitude, 0) / tickets.length;
-
-            map = L.map('map').setView([avgLat, avgLon], 12);
             
-            // Fixed Map tiles: Standard OpenStreetMap (No API keys ever required)
-            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; OpenStreetMap',
-                maxZoom: 19
-            }).addTo(map);
+            if (!map) {
+                const avgLat = tickets.reduce((s, t) => s + t.latitude, 0) / tickets.length;
+                const avgLon = tickets.reduce((s, t) => s + t.longitude, 0) / tickets.length;
+                map = L.map('map').setView([avgLat, avgLon], 12);
+                
+                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap',
+                    maxZoom: 19
+                }).addTo(map);
+                
+                markersLayer.addTo(map);
+            }
+
+            // Clear old markers
+            markersLayer.clearLayers();
 
             tickets.forEach(t => {
                 let icon = blueIcon;
@@ -213,7 +221,7 @@
                 L.marker([t.latitude, t.longitude], {icon: icon})
                     .bindTooltip(`<b>${t.category.toUpperCase().replace('_', ' ')}</b>`, {permanent: true, direction: "top", offset: [0, -40], className: 'bg-slate-800 text-white border-slate-700 font-bold shadow-lg'})
                     .bindPopup(`<div style="color:black;"><b>Ticket #${t.id}</b><br>Type: ${t.category.toUpperCase()}<br>Severity: <b>${t.severity}</b></div>`)
-                    .addTo(map);
+                    .addTo(markersLayer);
             });
         }
 

@@ -23,6 +23,10 @@ export default function Dashboard() {
   
   // User Data
   const [userData, setUserData] = useState({ name: 'Citizen', phone: '' });
+  const [userEmail, setUserEmail] = useState('');
+  const [pushEnabled, setPushEnabled] = useState(true);
+  const [emailEnabled, setEmailEnabled] = useState(true);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -32,14 +36,44 @@ export default function Dashboard() {
     } else {
       const name = localStorage.getItem('citizen_name') || 'Citizen User';
       const phone = localStorage.getItem('citizen_phone') || 'N/A';
+      const email = localStorage.getItem('citizen_email') || '';
+      const push = localStorage.getItem('citizen_push') !== 'false';
+      const emailAlerts = localStorage.getItem('citizen_email_alerts') !== 'false';
+      
       setUserData({ name, phone });
+      setUserEmail(email);
+      setPushEnabled(push);
+      setEmailEnabled(emailAlerts);
     }
     
     // Load complaints
-    getAllComplaints().then(data => {
-      // Sort by newest first
+    const loadData = async () => {
+      let data = await getAllComplaints();
+      let updated = false;
+      for (const report of data) {
+        if (report.synced === 1 && report.masterTicketId) {
+          try {
+            const res = await fetch(`http://127.0.0.1:8000/api/v1/master_tickets/${report.masterTicketId}/status`);
+            if (res.ok) {
+              const resData = await res.json();
+              if (resData.status && resData.status !== report.status) {
+                report.status = resData.status;
+                const { saveComplaint } = await import('@/lib/db');
+                await saveComplaint(report);
+                updated = true;
+              }
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      }
+      if (updated) {
+        data = await getAllComplaints();
+      }
       setComplaints(data.sort((a, b) => b.timestamp - a.timestamp));
-    });
+    };
+    loadData();
   }, [router, activeTab]); // Reload complaints when tab changes
 
   const handleLogout = () => {
@@ -47,6 +81,16 @@ export default function Dashboard() {
     localStorage.removeItem('citizen_name');
     localStorage.removeItem('citizen_phone');
     router.replace('/');
+  };
+
+  const handleSaveSettings = () => {
+    localStorage.setItem('citizen_name', userData.name);
+    localStorage.setItem('citizen_email', userEmail);
+    localStorage.setItem('citizen_push', pushEnabled.toString());
+    localStorage.setItem('citizen_email_alerts', emailEnabled.toString());
+    
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 3000);
   };
 
   if (!isMounted) return null;
@@ -130,8 +174,19 @@ export default function Dashboard() {
                     <p className="text-sm text-slate-500 font-medium mt-0.5">
                       {new Date(complaint.timestamp).toLocaleDateString()} • ID: #{complaint.id.slice(-4)}
                     </p>
-                    <div className={`mt-3 inline-block px-3 py-1 text-xs font-bold uppercase tracking-wider rounded border ${complaint.synced ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-                      {complaint.synced ? t.sentToGovt : t.pendingSync}
+                    <div className="flex gap-2 mt-3">
+                      <div className={`inline-block px-3 py-1 text-xs font-bold uppercase tracking-wider rounded border ${complaint.synced ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                        {complaint.synced ? t.sentToGovt : t.pendingSync}
+                      </div>
+                      {complaint.synced === 1 && complaint.status && (
+                        <div className={`inline-block px-3 py-1 text-xs font-bold uppercase tracking-wider rounded border ${
+                          complaint.status === 'Resolved' ? 'bg-green-100 text-green-800 border-green-200' :
+                          complaint.status === 'In Progress' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
+                          'bg-gray-100 text-gray-800 border-gray-200'
+                        }`}>
+                          {complaint.status}
+                        </div>
+                      )}
                     </div>
                   </div>
                   {complaint.photoDataUrl && (
@@ -211,26 +266,53 @@ export default function Dashboard() {
                 
                 <div className="space-y-5">
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1">{t.fullLegalName}</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">{t.fullLegalName || 'Full Legal Name'}</label>
                     <input 
                       type="text" 
                       value={userData.name}
-                      readOnly
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-slate-600 font-medium" 
+                      className="w-full bg-white border border-slate-200 rounded-lg px-4 py-3 text-slate-900 font-medium focus:ring-2 focus:ring-slate-900 focus:outline-none transition-shadow" 
+                      onChange={(e) => setUserData({ ...userData, name: e.target.value })}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1">{t.registeredMobile}</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Email Address</label>
                     <input 
-                      type="text" 
-                      value={`+91 ${userData.phone}`}
-                      readOnly
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-slate-600 font-medium" 
+                      type="email" 
+                      value={userEmail}
+                      onChange={(e) => setUserEmail(e.target.value)}
+                      placeholder="citizen@example.com"
+                      className="w-full bg-white border border-slate-200 rounded-lg px-4 py-3 text-slate-900 font-medium focus:ring-2 focus:ring-slate-900 focus:outline-none transition-shadow" 
                     />
-                    <p className="text-xs text-slate-500 mt-2 font-medium">
-                      {t.updateDetailsHelp}
-                    </p>
                   </div>
+                  <div className="pt-2">
+                    <h3 className="text-sm font-semibold text-slate-900 mb-3">Notification Preferences</h3>
+                    <div className="space-y-3">
+                      <label className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition-colors">
+                        <div>
+                          <p className="text-sm font-bold text-slate-800">Push Notifications</p>
+                          <p className="text-xs text-slate-500 font-medium">Get updates on your device</p>
+                        </div>
+                        <input type="checkbox" className="w-5 h-5 accent-slate-900" checked={pushEnabled} onChange={(e) => setPushEnabled(e.target.checked)} />
+                      </label>
+                      <label className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition-colors">
+                        <div>
+                          <p className="text-sm font-bold text-slate-800">Email Alerts</p>
+                          <p className="text-xs text-slate-500 font-medium">Receive updates in your inbox</p>
+                        </div>
+                        <input type="checkbox" className="w-5 h-5 accent-slate-900" checked={emailEnabled} onChange={(e) => setEmailEnabled(e.target.checked)} />
+                      </label>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={handleSaveSettings}
+                    className="w-full h-12 bg-slate-900 text-white rounded-xl font-bold flex items-center justify-center hover:bg-slate-800 transition-colors"
+                  >
+                    {saveSuccess ? (
+                      <><CheckCircle className="w-5 h-5 mr-2" /> Saved Successfully</>
+                    ) : (
+                      "Save Changes"
+                    )}
+                  </button>
                 </div>
               </div>
             )}
