@@ -28,6 +28,7 @@ export type StoredReport = {
   masterTicketId?: number;
   isDuplicate?: boolean;
   lastError?: string;
+  status?: string;
 };
 
 export type CreateReportResponse = {

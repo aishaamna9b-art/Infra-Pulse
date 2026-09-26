@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { User, Settings, HelpCircle, LogOut, ArrowLeft, ShieldCheck, CheckCircle, Send, ChevronRight, ChevronDown } from "lucide-react";
 import { useLanguage } from "@/features/i18n/language-provider";
@@ -11,12 +11,40 @@ type ProfileViewType = 'main' | 'settings' | 'help';
 export default function AccountPage() {
   const router = useRouter();
   const { t } = useLanguage();
-  const { user, signOut } = useAuth();
+  const { session, signIn, signOut } = useAuth();
   
   const [profileView, setProfileView] = useState<ProfileViewType>('main');
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
   const [supportQuery, setSupportQuery] = useState('');
   const [supportSent, setSupportSent] = useState(false);
+  
+  const [fullName, setFullName] = useState('');
+  const [emailAddress, setEmailAddress] = useState('');
+  const [pushEnabled, setPushEnabled] = useState(true);
+  const [emailEnabled, setEmailEnabled] = useState(true);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  
+  useEffect(() => {
+    setFullName(session?.name || 'Citizen User');
+    setEmailAddress(localStorage.getItem('portal_email') || '');
+    setPushEnabled(localStorage.getItem('portal_push') !== 'false');
+    setEmailEnabled(localStorage.getItem('portal_email_alerts') !== 'false');
+  }, [session]);
+
+  const handleSaveSettings = () => {
+    if (session) {
+      signIn({
+        ...session,
+        name: fullName
+      });
+    }
+    localStorage.setItem('portal_email', emailAddress);
+    localStorage.setItem('portal_push', pushEnabled.toString());
+    localStorage.setItem('portal_email_alerts', emailEnabled.toString());
+    
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 3000);
+  };
 
   const handleLogout = async () => {
     await signOut();
@@ -30,7 +58,7 @@ export default function AccountPage() {
           <div className="w-24 h-24 bg-muted border-4 border-background shadow-md text-muted-foreground rounded-full mx-auto flex items-center justify-center mb-4">
             <User className="w-12 h-12" />
           </div>
-          <h2 className="text-2xl font-bold text-foreground">{user?.phone || 'Citizen'}</h2>
+          <h2 className="text-2xl font-bold text-foreground">{session?.name || 'Citizen'}</h2>
           <p className="text-muted-foreground font-medium mt-1 flex items-center justify-center gap-1">
             <ShieldCheck className="w-4 h-4 text-emerald-600" /> {t.verifiedCitizen || 'Verified Citizen'}
           </p>
@@ -87,42 +115,54 @@ export default function AccountPage() {
         
         <div className="space-y-5">
           <div>
-            <label className="block text-sm font-semibold text-foreground mb-1">{t.registeredMobile || 'Registered Mobile'}</label>
+            <label className="block text-sm font-semibold text-foreground mb-1">Full Legal Name</label>
             <input 
               type="text" 
-              value={user?.phone || ''}
-              readOnly
-              className="w-full bg-muted border border-border rounded-lg px-4 py-3 text-foreground font-medium" 
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="Your full name"
+              className="w-full bg-background border border-border rounded-lg px-4 py-3 text-foreground font-medium focus:ring-2 focus:ring-primary focus:outline-none transition-shadow" 
             />
-            <p className="text-xs text-muted-foreground mt-2 font-medium">
-              {t.updateDetailsHelp || 'To update your registered mobile number, please visit your nearest civic center.'}
-            </p>
           </div>
-          
-          <div className="pt-4 border-t border-border">
-            <details className="group">
-              <summary className="flex cursor-pointer items-center justify-between font-bold text-foreground hover:text-primary transition-colors">
-                Advanced Options
-                <ChevronDown className="h-5 w-5 transition-transform group-open:rotate-180" />
-              </summary>
-              <div className="mt-4 space-y-4 animate-in slide-in-from-top-2 fade-in duration-200">
-                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-xl border border-border">
-                  <div>
-                    <h4 className="font-semibold text-sm text-foreground">Data Export</h4>
-                    <p className="text-xs text-muted-foreground mt-1">Download a copy of your report history</p>
-                  </div>
-                  <button className="text-sm font-bold text-primary hover:underline">Request Data</button>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-destructive/5 rounded-xl border border-destructive/20">
-                  <div>
-                    <h4 className="font-semibold text-sm text-destructive">Delete Account</h4>
-                    <p className="text-xs text-muted-foreground mt-1">Permanently remove your data from our systems</p>
-                  </div>
-                  <button className="text-sm font-bold text-destructive hover:underline">Delete</button>
-                </div>
-              </div>
-            </details>
+          <div>
+            <label className="block text-sm font-semibold text-foreground mb-1">Email Address</label>
+            <input 
+              type="email" 
+              value={emailAddress}
+              onChange={(e) => setEmailAddress(e.target.value)}
+              placeholder="citizen@example.com"
+              className="w-full bg-background border border-border rounded-lg px-4 py-3 text-foreground font-medium focus:ring-2 focus:ring-primary focus:outline-none transition-shadow" 
+            />
           </div>
+          <div className="pt-2">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Notification Preferences</h3>
+            <div className="space-y-3">
+              <label className="flex items-center justify-between p-3 bg-muted/50 rounded-xl border border-border cursor-pointer hover:bg-muted transition-colors">
+                <div>
+                  <p className="text-sm font-bold text-foreground">Push Notifications</p>
+                  <p className="text-xs text-muted-foreground font-medium">Get updates on your device</p>
+                </div>
+                <input type="checkbox" className="w-5 h-5 accent-primary" checked={pushEnabled} onChange={(e) => setPushEnabled(e.target.checked)} />
+              </label>
+              <label className="flex items-center justify-between p-3 bg-muted/50 rounded-xl border border-border cursor-pointer hover:bg-muted transition-colors">
+                <div>
+                  <p className="text-sm font-bold text-foreground">Email Alerts</p>
+                  <p className="text-xs text-muted-foreground font-medium">Receive updates in your inbox</p>
+                </div>
+                <input type="checkbox" className="w-5 h-5 accent-primary" checked={emailEnabled} onChange={(e) => setEmailEnabled(e.target.checked)} />
+              </label>
+            </div>
+          </div>
+          <button 
+            onClick={handleSaveSettings}
+            className="w-full h-12 bg-primary text-primary-foreground rounded-xl font-bold flex items-center justify-center hover:bg-primary/90 transition-colors"
+          >
+            {saveSuccess ? (
+              <><CheckCircle className="w-5 h-5 mr-2" /> Saved Successfully</>
+            ) : (
+              "Save Changes"
+            )}
+          </button>
         </div>
       </div>
     );

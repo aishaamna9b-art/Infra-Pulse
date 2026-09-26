@@ -12,6 +12,7 @@ class MasterTicket(Base):
     status = Column(String, default="Open")
     latitude = Column(Float)
     longitude = Column(Float)
+    address = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -27,6 +28,7 @@ class Report(Base):
     audio_url = Column(String, nullable=True)
     latitude = Column(Float)
     longitude = Column(Float)
+    address = Column(String, nullable=True)
     master_ticket_id = Column(Integer, ForeignKey("master_tickets.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     

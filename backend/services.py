@@ -17,13 +17,13 @@ def analyze_damage_image(image_bytes: bytes, mime_type: str = 'image/jpeg', expe
     "{user_description}"
     
     Determine if the image actually matches the expected category "{expected_category}". 
-    The allowed categories are: pothole, water_leakage, broken_tree, street_light_damage, garbage_dump, broken_pipe, others.
+    The allowed categories are: pothole, water_leakage, streetlight, garbage, other.
     If the image does not match the expected category, or if it is not related to public infrastructure damage at all (e.g., a selfie, a random object), you MUST reject it by setting "is_valid_damage" to false.
     
     Return your analysis STRICTLY as a JSON object with the following schema:
     {{
         "is_valid_damage": boolean, // True if the image matches the expected category, False otherwise
-        "damage_type": "string (e.g., 'pipe_burst', 'pothole', 'water_leakage', 'none')",
+        "damage_type": "string (must be one of: pothole, water_leakage, streetlight, garbage, other, or none)",
         "severity": "string ('LOW', 'MEDIUM', 'HIGH', or null)",
         "description": "string (brief description of the issue seen in the photo)"
     }}
@@ -31,7 +31,7 @@ def analyze_damage_image(image_bytes: bytes, mime_type: str = 'image/jpeg', expe
     
     try:
         response = client.models.generate_content(
-            model='gemini-3.6-flash',
+            model='gemini-2.5-flash',
             contents=[
                 prompt,
                 types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
@@ -52,11 +52,13 @@ def analyze_damage_image(image_bytes: bytes, mime_type: str = 'image/jpeg', expe
             "description": f"AI verification failed: {str(e)}"
         }
 
-def generate_action_plan(category: str, severity: str, latitude: float, longitude: float) -> str:
+def generate_action_plan(category: str, severity: str, latitude: float, longitude: float, address: str = None) -> str:
     """
     Uses Gemini to draft an official email/action plan to the contractor.
     """
     client = genai.Client()
+    
+    location_details = f"{address}" if address else f"Coordinates: {latitude}, {longitude}"
     
     prompt = f"""
     You are an AI assistant for a government municipal corporation.
@@ -65,19 +67,20 @@ def generate_action_plan(category: str, severity: str, latitude: float, longitud
     Issue Details:
     - Damage Type: {category}
     - AI Severity Score: {severity}
-    - Location Coordinates: {latitude}, {longitude}
+    - Location: {location_details}
     
     Instructions:
     - Keep it very concise (3-4 sentences max).
     - It should sound like an official government dispatch.
     - Ask them to dispatch a team immediately because the AI verified it.
-    - IMPORTANT: DO NOT hallucinate or invent a "Ward No", "Street Name", or "City". ONLY use the provided Location Coordinates.
+    - IMPORTANT: DO NOT hallucinate or invent a "Ward No", "Street Name", or "City". ONLY use the provided Location.
+    - IMPORTANT: DO NOT mention that this email was drafted by an AI or Gemini.
     - Return ONLY the email draft text without any markdown or extra conversational text.
     """
     
     try:
         response = client.models.generate_content(
-            model='gemini-3.6-flash',
+            model='gemini-2.5-flash',
             contents=prompt
         )
         return response.text.strip()

@@ -46,6 +46,23 @@ export async function submitReport(report: StoredReport): Promise<CreateReportRe
   return response.json() as Promise<CreateReportResponse>;
 }
 
+export async function validateImage(file: Blob, category: string): Promise<{is_valid: boolean; message: string}> {
+  const formData = new FormData();
+  formData.append("file", file, "validation.jpg");
+  formData.append("category", category);
+
+  const response = await fetch("/api/v1/reports/validate-image", {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new ApiError(await parseError(response), response.status);
+  }
+  
+  return response.json() as Promise<{is_valid: boolean; message: string}>;
+}
+
 export async function reverseGeocode(lat: number, lon: number) {
   const response = await fetch(`/api/geocode?lat=${lat}&lon=${lon}`);
   if (!response.ok) {

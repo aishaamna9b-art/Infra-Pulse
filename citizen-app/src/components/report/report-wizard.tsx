@@ -12,8 +12,9 @@ import { PhotoField } from "@/components/report/photo-field";
 import { useLanguage } from "@/features/i18n/language-provider";
 import { useNetwork } from "@/features/offline/network-provider";
 import { useReports } from "@/features/reports/reports-provider";
-import { reverseGeocode, submitReport } from "@/lib/api";
+import { reverseGeocode, submitReport, validateImage } from "@/lib/api";
 import { markAsSynced, markSyncFailed } from "@/lib/db";
+import { dataUrlToFile } from "@/lib/utils";
 import type { IssueCategory, StoredReport } from "@/types/report";
 import { ISSUE_CATEGORIES } from "@/types/report";
 
@@ -71,14 +72,34 @@ export function ReportWizard() {
     );
   };
 
-  const goNext = () => {
+  const goNext = async () => {
     if (step === 0 && (!category || description.trim().length < 8)) {
       setError(t.missingIssue);
       return;
     }
-    if (step === 1 && !coords && address.trim().length < 5) {
-      setError(t.missingPlace);
-      return;
+    if (step === 1) {
+      if (!coords && address.trim().length < 5) {
+        setError(t.missingPlace);
+        return;
+      }
+      if (photoUrl && category && online) {
+        setSubmitting(true);
+        setError("");
+        try {
+          const file = dataUrlToFile(photoUrl, "evidence.jpg");
+          const result = await validateImage(file, category);
+          if (!result.is_valid) {
+            setError(result.message || "the images is not similar to given complaint");
+            setSubmitting(false);
+            return;
+          }
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Image validation failed");
+          setSubmitting(false);
+          return;
+        }
+        setSubmitting(false);
+      }
     }
     setError("");
     setStep((current) => (current + 1) as Step);
@@ -216,12 +237,12 @@ export function ReportWizard() {
                   value={address}
                   onChange={(event) => setAddress(event.target.value)}
                   placeholder={t.addressPlaceholder}
-                  className="pr-[110px]"
+                  className="pr-[160px]"
                 />
                 <Button 
                   type="button" 
                   size="sm"
-                  variant="ghost" 
+                  variant="secondary" 
                   onClick={fetchGps} 
                   disabled={locating}
                   className="absolute right-1 h-8 text-muted-foreground hover:text-foreground"
@@ -284,8 +305,8 @@ export function ReportWizard() {
           </Button>
         ) : null}
         {step < 2 ? (
-          <Button type="button" className="flex-1" onClick={goNext}>
-            {t.continue}
+          <Button type="button" className="flex-1" onClick={() => void goNext()} disabled={submitting}>
+            {submitting ? t.submitting : t.continue}
           </Button>
         ) : (
           <Button type="button" className="flex-1" onClick={() => void handleSubmit()} disabled={submitting}>

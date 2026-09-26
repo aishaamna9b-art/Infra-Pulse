@@ -26,7 +26,32 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
 
   const refresh = useCallback(async () => {
-    const next = await getAllReports();
+    let next = await getAllReports();
+    
+    // Fetch latest status for synced reports
+    let updated = false;
+    for (const report of next) {
+      if (report.synced === 1 && report.masterTicketId) {
+        try {
+          const res = await fetch(`http://127.0.0.1:8000/api/v1/master_tickets/${report.masterTicketId}/status`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.status && data.status !== report.status) {
+              report.status = data.status;
+              await saveReport(report);
+              updated = true;
+            }
+          }
+        } catch (e) {
+          console.error("Failed to fetch report status", e);
+        }
+      }
+    }
+    
+    if (updated) {
+      next = await getAllReports();
+    }
+
     setReports(next);
     setReady(true);
   }, []);

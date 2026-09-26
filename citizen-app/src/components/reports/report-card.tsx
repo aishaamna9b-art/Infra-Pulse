@@ -51,6 +51,11 @@ export function ReportCard({
           <Badge tone={pending ? (report.lastError ? "danger" : "warning") : "success"}>
             {pending ? (report.lastError ? t.failedSync : t.pendingSync) : t.sentToGovt}
           </Badge>
+          {!pending && report.status ? (
+            <Badge tone={report.status === 'Resolved' ? 'success' : report.status === 'In Progress' ? 'warning' : 'neutral'}>
+              {report.status.toUpperCase()}
+            </Badge>
+          ) : null}
           {pending && onRetry ? (
             <Button type="button" size="sm" variant="outline" onClick={() => onRetry(report.id)}>
               <RotateCw className="size-3.5" />

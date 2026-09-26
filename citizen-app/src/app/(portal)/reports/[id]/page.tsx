@@ -39,9 +39,16 @@ export default function ReportDetailPage() {
             <h2 className="text-xl font-semibold capitalize">{report.category.replace("_", " ")}</h2>
             <p className="text-sm text-muted-foreground">{formatDateTime(report.timestamp, locale)}</p>
           </div>
-          <Badge tone={report.synced ? "success" : "warning"}>
-            {report.synced ? t.sentToGovt : t.pendingSync}
-          </Badge>
+          <div className="flex gap-2">
+            <Badge tone={report.synced ? "success" : "warning"}>
+              {report.synced ? t.sentToGovt : t.pendingSync}
+            </Badge>
+            {report.status ? (
+              <Badge tone={report.status === 'Resolved' ? 'success' : report.status === 'In Progress' ? 'warning' : 'neutral'}>
+                {report.status.toUpperCase()}
+              </Badge>
+            ) : null}
+          </div>
         </div>
         <p>{report.description}</p>
         {report.location.address ? <p className="text-sm">{report.location.address}</p> : null}

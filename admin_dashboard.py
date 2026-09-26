@@ -140,8 +140,8 @@ with st.sidebar:
     
     selected = option_menu(
         menu_title=None,
-        options=["Dashboard Overview", "Live Incident Map", "Ticket Management", "System Settings"],
-        icons=["house", "map", "list-task", "gear"],
+        options=["Dashboard Overview", "Severity Analysis", "Ticket Management", "System Settings"],
+        icons=["house", "bar-chart", "list-task", "gear"],
         menu_icon="cast",
         default_index=0,
         styles={
@@ -152,6 +152,21 @@ with st.sidebar:
         }
     )
     
+    st.markdown("### Live Map")
+    if df.empty:
+        st.info("No geospatial data.")
+    else:
+        avg_lat = df['latitude'].mean()
+        avg_lon = df['longitude'].mean()
+        m = folium.Map(location=[avg_lat, avg_lon], zoom_start=12, tiles="OpenStreetMap")
+        for idx, row in df.iterrows():
+            color = "darkred" if row["severity"] == "HIGH" else "orange" if row["severity"] == "MEDIUM" else "blue"
+            folium.Marker(
+                [row['latitude'], row['longitude']],
+                icon=folium.Icon(color=color, icon="info-sign")
+            ).add_to(m)
+        st_folium(m, width="100%", height=300, returned_objects=[])
+
     st.sidebar.markdown("<br><br><br>", unsafe_allow_html=True)
     if st.sidebar.button("🔒 Secure Logout", use_container_width=True):
         del st.session_state["password_correct"]
@@ -218,44 +233,28 @@ if selected == "Dashboard Overview":
                         st.markdown(f"<span style='color: #dc2626; font-size: 13px; font-weight: bold;'>● HIGH SEVERITY</span>", unsafe_allow_html=True)
                         st.divider()
 
-# --- PAGE: LIVE INCIDENT MAP ---
-elif selected == "Live Incident Map":
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.title("Live Incident Map")
-    with col2:
-        st.write("")
-        st.write("")
-        map_mode = st.radio("Map View", ["Heatmap (Density)", "Standard Markers"], horizontal=True, label_visibility="collapsed")
-    
-    st.markdown("Visualizing ticket density and exact coordinates. High density areas glow red.")
+# --- PAGE: SEVERITY ANALYSIS ---
+elif selected == "Severity Analysis":
+    st.title("Severity Analysis")
+    st.markdown("Bar graph representing the number of complaints raised along with severity.")
     
     if df.empty:
-        st.info("No geospatial data available.")
+        st.info("No data available.")
     else:
         with st.container(border=True):
-            avg_lat = df['latitude'].mean()
-            avg_lon = df['longitude'].mean()
-            
-            # Using OpenStreetMap universally to avoid API Key tile errors
-            m = folium.Map(location=[avg_lat, avg_lon], zoom_start=14, tiles="OpenStreetMap")
-            
-            if map_mode == "Heatmap (Density)":
-                # Create Heatmap data
-                heat_data = [[row['latitude'], row['longitude'], row['severity_score']] for idx, row in df.iterrows()]
-                # Add HeatMap: Sivappu (RED) glow
-                HeatMap(heat_data, radius=25, blur=15, gradient={0.4: 'blue', 0.65: 'orange', 1: 'red'}).add_to(m)
-            else:
-                for idx, row in df.iterrows():
-                    color = "darkred" if row["severity"] == "HIGH" else "orange" if row["severity"] == "MEDIUM" else "blue"
-                    area_name = get_full_address(row['latitude'], row['longitude'])
-                    folium.Marker(
-                        [row['latitude'], row['longitude']],
-                        popup=folium.Popup(f"<b>Ticket #{row['id']}</b><br>Cat: {row['category']}<br>Sev: {row['severity']}", max_width=200),
-                        icon=folium.Icon(color=color, icon="info-sign")
-                    ).add_to(m)
-                    
-            st_folium(m, width="100%", height=600, returned_objects=[])
+            severity_counts = df.groupby('severity').size().reset_index(name='Count')
+            fig = px.bar(
+                severity_counts, 
+                x='severity', 
+                y='Count', 
+                color='severity',
+                text_auto=True,
+                title="Complaints Raised by Severity",
+                template='plotly_dark' if st.get_option('theme.base') == 'dark' else 'plotly_white',
+                color_discrete_map={"HIGH": "#dc2626", "MEDIUM": "#f97316", "LOW": "#3b82f6"}
+            )
+            fig.update_layout(margin=dict(l=20, r=20, t=40, b=20))
+            st.plotly_chart(fig, use_container_width=True)
 
 # --- PAGE: TICKET MANAGEMENT ---
 elif selected == "Ticket Management":
