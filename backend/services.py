@@ -3,7 +3,7 @@ import json
 from google import genai
 from google.genai import types
 
-def analyze_damage_image(image_bytes: bytes, mime_type: str = 'image/jpeg', user_description: str = ""):
+def analyze_damage_image(image_bytes: bytes, mime_type: str = 'image/jpeg', expected_category: str = "", user_description: str = ""):
     """
     Analyzes an image and user description using Gemini to determine damage type and severity.
     """
@@ -12,15 +12,17 @@ def analyze_damage_image(image_bytes: bytes, mime_type: str = 'image/jpeg', user
     prompt = f"""
     You are an AI assistant for a civic issue reporting system.
     Analyze this image of public infrastructure. 
-    The citizen who uploaded this image also provided the following description (typed or via voice):
+    The citizen who uploaded this image selected the category: "{expected_category}".
+    They also provided the following description (typed or via voice):
     "{user_description}"
     
-    Determine if there is valid damage. Use BOTH the image and the user's description to figure out the exact category. 
-    For example, if the description says "pipe water leakage" and the image shows water, the category MUST be "water_leakage".
+    Determine if the image actually matches the expected category "{expected_category}". 
+    The allowed categories are: pothole, water_leakage, broken_tree, street_light_damage, garbage_dump, broken_pipe, others.
+    If the image does not match the expected category, or if it is not related to public infrastructure damage at all (e.g., a selfie, a random object), you MUST reject it by setting "is_valid_damage" to false.
     
     Return your analysis STRICTLY as a JSON object with the following schema:
     {{
-        "is_valid_damage": boolean,
+        "is_valid_damage": boolean, // True if the image matches the expected category, False otherwise
         "damage_type": "string (e.g., 'pipe_burst', 'pothole', 'water_leakage', 'none')",
         "severity": "string ('LOW', 'MEDIUM', 'HIGH', or null)",
         "description": "string (brief description of the issue seen in the photo)"
@@ -69,6 +71,7 @@ def generate_action_plan(category: str, severity: str, latitude: float, longitud
     - Keep it very concise (3-4 sentences max).
     - It should sound like an official government dispatch.
     - Ask them to dispatch a team immediately because the AI verified it.
+    - IMPORTANT: DO NOT hallucinate or invent a "Ward No", "Street Name", or "City". ONLY use the provided Location Coordinates.
     - Return ONLY the email draft text without any markdown or extra conversational text.
     """
     

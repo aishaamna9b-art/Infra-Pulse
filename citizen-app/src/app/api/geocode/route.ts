@@ -31,7 +31,20 @@ export async function GET(request: Request) {
     });
     
     const osmData = await osmResponse.json();
-    if (osmData && osmData.display_name) {
+    if (osmData && osmData.address) {
+      const { road, suburb, neighbourhood, city_district, city } = osmData.address;
+      
+      // Attempt to build a more localized address (e.g. "NS Garden, Ward 84, Ramanathapuram")
+      const parts = [
+        road || neighbourhood,
+        city_district,
+        suburb || city
+      ].filter(Boolean);
+      
+      const customAddress = Array.from(new Set(parts)).join(", ");
+      
+      return NextResponse.json({ address: customAddress || osmData.display_name });
+    } else if (osmData && osmData.display_name) {
       return NextResponse.json({ address: osmData.display_name });
     }
 

@@ -225,7 +225,7 @@ export default function ComplaintForm() {
         {location && (
           <div className="flex items-center gap-2 text-xs font-medium text-green-700 bg-green-50 py-2 px-3 rounded-lg border border-green-100 inline-flex mt-2">
             <CheckCircle className="w-3 h-3" />
-            GPS Coordinates Saved: {location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}
+            Location Saved: {address || "Acquired"}
           </div>
         )}
       </div>

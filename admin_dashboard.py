@@ -288,7 +288,7 @@ elif selected == "Ticket Management":
                 with st.expander(f"{sev_color} 👑 MASTER TICKET #{row['id']} | {row['category'].upper()} | {area} | Status: {row['status']} | 👥 {report_count} Reports"):
                     ec1, ec2 = st.columns([1, 1])
                     with ec1:
-                        st.write(f"**Coordinates:** {row['latitude']:.6f}, {row['longitude']:.6f}")
+                        st.write(f"**Location:** {area}")
                         st.write(f"**Registered:** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
                         
                         new_status = st.selectbox("Update Status", ["Open", "In Progress", "Resolved"], index=["Open", "In Progress", "Resolved"].index(row['status']), key=f"stat_{row['id']}")
@@ -330,7 +330,7 @@ elif selected == "Ticket Management":
                     ec1, ec2 = st.columns([1, 1])
                     
                     with ec1:
-                        st.write(f"**Coordinates:** {row['latitude']:.6f}, {row['longitude']:.6f}")
+                        st.write(f"**Location:** {area}")
                         st.write(f"**Registered:** {datetime.now().strftime('%Y-%m-%d %H:%M')}") # Mock date
                         
                         new_status = st.selectbox("Update Status", ["Open", "In Progress", "Resolved"], index=["Open", "In Progress", "Resolved"].index(row['status']), key=f"stat_{row['id']}")

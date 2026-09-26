@@ -1,38 +1,54 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Noto_Sans_Tamil, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
-import { LanguageProvider } from "@/lib/LanguageContext";
+import { AppProviders } from "@/components/providers";
+import { SkipLink } from "@/components/layout/skip-link";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const sans = Plus_Jakarta_Sans({
+  variable: "--font-sans",
   subsets: ["latin"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const tamil = Noto_Sans_Tamil({
+  variable: "--font-tamil",
+  subsets: ["tamil"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Infra-Pulse",
-  description: "Report civic issues seamlessly",
+  title: {
+    default: "Infra-Pulse",
+    template: "%s · Infra-Pulse",
+  },
+  description: "Report civic infrastructure issues by voice, photo, or text — even offline.",
   manifest: "/manifest.json",
-  themeColor: "#2563eb",
+  applicationName: "Infra-Pulse",
+  appleWebApp: {
+    capable: true,
+    title: "Infra-Pulse",
+    statusBarStyle: "black-translucent",
+  },
 };
 
-import OfflineBanner from "@/components/OfflineBanner";
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#10231f" },
+    { media: "(prefers-color-scheme: dark)", color: "#0e1a17" },
+  ],
+  width: "device-width",
+  initialScale: 1,
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">
-        <OfflineBanner />
-        <LanguageProvider>
+    <html lang="en" className={`${sans.variable} ${tamil.variable} h-full`}>
+      <body className="min-h-full">
+        <AppProviders>
+          <SkipLink />
           {children}
-        </LanguageProvider>
+        </AppProviders>
       </body>
     </html>
   );

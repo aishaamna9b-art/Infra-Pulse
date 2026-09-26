@@ -56,13 +56,15 @@ async def create_report(
         }
     else:
         # 2. Call Gemini AI Vision to verify the damage (run in threadpool to avoid async SDK conflicts)
-        ai_analysis = await run_in_threadpool(analyze_damage_image, image_bytes, file.content_type, f"Category chosen: {category}. Description: {description or ''}")
+        ai_analysis = await run_in_threadpool(analyze_damage_image, image_bytes, file.content_type, category, description or "")
         
         # If AI verification failed due to error, still let it through as a ticket
         if ai_analysis.get("damage_type") == "error":
             ai_analysis["is_valid_damage"] = True
             ai_analysis["damage_type"] = category or "uncategorized"
             ai_analysis["severity"] = "LOW"
+        elif not ai_analysis.get("is_valid_damage"):
+            raise HTTPException(status_code=400, detail="image not related")
     
     master_ticket = None
     closest_ticket = None
