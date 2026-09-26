@@ -82,24 +82,6 @@ export function ReportWizard() {
         setError(t.missingPlace);
         return;
       }
-      if (photoUrl && category && online) {
-        setSubmitting(true);
-        setError("");
-        try {
-          const file = dataUrlToFile(photoUrl, "evidence.jpg");
-          const result = await validateImage(file, category);
-          if (!result.is_valid) {
-            setError(result.message || "the images is not similar to given complaint");
-            setSubmitting(false);
-            return;
-          }
-        } catch (err) {
-          setError(err instanceof Error ? err.message : "Image validation failed");
-          setSubmitting(false);
-          return;
-        }
-        setSubmitting(false);
-      }
     }
     setError("");
     setStep((current) => (current + 1) as Step);
@@ -260,8 +242,32 @@ export function ReportWizard() {
           </Card>
           <PhotoField
             photoUrl={photoUrl}
-            onChange={(_file, dataUrl) => {
+            onChange={async (file, dataUrl) => {
+              if (!file || !dataUrl) {
+                setPhotoUrl(null);
+                return;
+              }
+              if (category && online) {
+                setSubmitting(true);
+                setError("");
+                try {
+                  const result = await validateImage(file, category);
+                  if (!result.is_valid) {
+                    setError("image unrelated");
+                    setPhotoUrl(null);
+                    setSubmitting(false);
+                    return;
+                  }
+                } catch (err) {
+                  setError("image unrelated");
+                  setPhotoUrl(null);
+                  setSubmitting(false);
+                  return;
+                }
+                setSubmitting(false);
+              }
               setPhotoUrl(dataUrl);
+              setError("");
             }}
           />
         </div>

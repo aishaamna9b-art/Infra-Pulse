@@ -31,7 +31,7 @@ def analyze_damage_image(image_bytes: bytes, mime_type: str = 'image/jpeg', expe
     
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-1.5-flash',
             contents=[
                 prompt,
                 types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
@@ -40,8 +40,13 @@ def analyze_damage_image(image_bytes: bytes, mime_type: str = 'image/jpeg', expe
                 response_mime_type="application/json",
             ),
         )
-        # Parse the JSON response
-        result = json.loads(response.text)
+        # Parse the JSON response, stripping markdown if present
+        text = response.text.strip()
+        if text.startswith("```json"):
+            text = text[7:]
+        if text.endswith("```"):
+            text = text[:-3]
+        result = json.loads(text.strip())
         return result
     except Exception as e:
         print(f"Error calling Gemini API: {e}")
@@ -80,7 +85,7 @@ def generate_action_plan(category: str, severity: str, latitude: float, longitud
     
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-1.5-flash',
             contents=prompt
         )
         return response.text.strip()

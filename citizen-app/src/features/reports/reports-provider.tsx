@@ -33,7 +33,7 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
     for (const report of next) {
       if (report.synced === 1 && report.masterTicketId) {
         try {
-          const res = await fetch(`http://127.0.0.1:8000/api/v1/master_tickets/${report.masterTicketId}/status`);
+          const res = await fetch(`/api/v1/master_tickets/${report.masterTicketId}/status`);
           if (res.ok) {
             const data = await res.json();
             if (data.status && data.status !== report.status) {
